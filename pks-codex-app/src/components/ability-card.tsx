@@ -20,7 +20,7 @@ export function AbilityCard({ ability, children, onPress }: { ability: Ability; 
       </View>
       {!!ability.baseDamage && <DamageStat damage={ability.baseDamage}> de dano base</DamageStat>}
       {ability.status && (
-        <Text style={styles.damage}>
+        <Text style={[styles.damage, { color: STATUS_INFO[ability.status].color }]}>
           {STATUS_INFO[ability.status].emoji} {STATUS_INFO[ability.status].label}:{' '}
           <Text style={text.accent}>{ability.statusChance ?? 0}% de chance</Text> ({STATUS_INFO[ability.status].effect})
         </Text>

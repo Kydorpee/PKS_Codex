@@ -2,30 +2,38 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { currentTurn } from '@/lib/engine';
+import { currentLooter, currentTurn } from '@/lib/engine';
+import { STATUS_INFO } from '@/lib/rules';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
-import { MONSTER_TURN, type LevelUpEvent } from '@/lib/types';
+import { MONSTER_TURN } from '@/lib/types';
 
 type Href = Parameters<typeof router.push>[0];
 
 type Notice = {
-  /** O que está sendo acompanhado: uma batalha ou as subidas de nível de um personagem. */
+  /** O que está sendo acompanhado: o turno ou o último status de uma batalha. */
   slot: string;
-  /** Muda a cada passagem de turno / nova subida de nível. */
+  /** Muda a cada passagem de turno / novo status aplicado. */
   key: string;
   title: string;
   detail: string;
-  /** Pede ação deste aparelho: a vez de um personagem daqui, o turno do monstro ou um evento de nível para o Mestre. */
+  /** Pede ação deste aparelho: a vez de um personagem daqui ou o turno do monstro (Mestre). */
   mine: boolean;
   href: Href;
   /** Só avisa se `true`; senão apenas registra o estado. */
   notify: boolean;
+  /** Status aplicado pelo sistema: sempre avisa, além da troca de turno. */
+  status?: boolean;
+  /** Cor do título e da borda (a cor do status). */
+  color?: string;
 };
 
 const VISIBLE_MS = 4000;
 
-/** Estado atual de tudo que este aparelho acompanha: turnos de batalhas e subidas de nível (para o Mestre). */
+/**
+ * Estado atual das batalhas que este aparelho acompanha. Eventos de nível não viram aviso na tela:
+ * ficam no bloco "Eventos de nível", para não atrapalhar o jogo.
+ */
 function watch(store: ReturnType<typeof useStore>): Notice[] {
   const { codexes, characters, myCharacters, myCodexes } = store;
   const mine = new Set(myCharacters.map((c) => c.id));
@@ -35,6 +43,23 @@ function watch(store: ReturnType<typeof useStore>): Notice[] {
   for (const codex of codexes) {
     const isMaster = mastered.has(codex.id);
     for (const battle of codex.battles) {
+      const looter = currentLooter(battle);
+      const inLoot = battle.loot?.order.some((id) => mine.has(id));
+      if (looter && (isMaster || inLoot)) {
+        const myLoot = mine.has(looter);
+        notices.push({
+          slot: `espolios/${battle.id}`,
+          key: `${battle.loot!.turnIndex}`,
+          notify: true,
+          title: myLoot ? '💰 Sua vez nos Espólios!' : `💰 Vez de ${characters.find((c) => c.id === looter)?.name ?? '?'} nos Espólios`,
+          detail: myLoot ? 'Pegue os itens que quiser e passe a vez.' : 'Itens do monstro derrotado.',
+          mine: myLoot,
+          href: {
+            pathname: '/espolios',
+            params: { codexId: codex.id, battleId: battle.id, ...(myLoot ? { characterId: looter } : {}) },
+          } as Href,
+        });
+      }
       const ownCharacter = battle.participants.find((p) => mine.has(p.characterId))?.characterId;
       if (battle.status !== 'ativa' || (!isMaster && !ownCharacter)) continue;
 
@@ -50,6 +75,18 @@ function watch(store: ReturnType<typeof useStore>): Notice[] {
           params: { id: battle.id, codexId: codex.id, ...(viewer ? { characterId: viewer } : {}) },
         } as Href,
       };
+      const hit = battle.lastStatus;
+      notices.push({
+        ...base,
+        slot: `status/${battle.id}`,
+        key: hit?.id ?? '',
+        notify: !!hit,
+        status: true,
+        color: hit ? STATUS_INFO[hit.type].color : undefined,
+        title: hit ? `${STATUS_INFO[hit.type].emoji} ${hit.target} (${STATUS_INFO[hit.type].condition})` : '',
+        detail: hit ? `Chance de ${hit.chance}% · o sistema rolou ${hit.roll} · ${STATUS_INFO[hit.type].effect}` : '',
+        mine: false,
+      });
       if (turn === MONSTER_TURN) {
         notices.push({
           ...base,
@@ -68,27 +105,6 @@ function watch(store: ReturnType<typeof useStore>): Notice[] {
         });
       }
     }
-
-    if (!isMaster) continue;
-    // Subidas de nível: o Mestre vê quem subiu e para qual nível.
-    const byCharacter = new Map<string, LevelUpEvent[]>();
-    for (const e of codex.levelUps) byCharacter.set(e.characterId, [...(byCharacter.get(e.characterId) ?? []), e]);
-    for (const [characterId, events] of byCharacter) {
-      const newest = events[events.length - 1];
-      const pending = events.filter((e) => !e.resolved);
-      const name = characters.find((c) => c.id === characterId)?.name ?? 'Um personagem';
-      const top = Math.max(...pending.map((e) => e.level), newest.level);
-      notices.push({
-        slot: `nivel/${codex.id}/${characterId}`,
-        // Só uma subida nova muda a chave; concluir eventos não gera aviso.
-        key: newest.id,
-        notify: !newest.resolved,
-        title: `🆙 ${name} subiu para o nível ${top}!`,
-        detail: pending.length > 1 ? `${pending.length} eventos de nível para definir.` : 'Toque para definir as recompensas.',
-        mine: true,
-        href: { pathname: '/codex/nivel', params: { codexId: codex.id, eventId: (pending[0] ?? newest).id } },
-      });
-    }
   }
   return notices;
 }
@@ -96,8 +112,8 @@ function watch(store: ReturnType<typeof useStore>): Notice[] {
 const stampsOf = (notices: Notice[]) => Object.fromEntries(notices.map((n) => [n.slot, n.key]));
 
 /**
- * Avisa, em qualquer tela, quando o turno de uma batalha acompanhada muda (Mestre e jogadores
- * que lutam nela) e, para o Mestre, quando um personagem sobe de nível. Quando pede ação
+ * Avisa, em qualquer tela, quando um status é aplicado (ex.: "Goblin (envenenado)") e quando o
+ * turno de uma batalha acompanhada muda (Mestre e jogadores que lutam nela). Quando pede ação
  * deste aparelho, o celular também vibra.
  */
 export function GameNotifier() {
@@ -106,7 +122,9 @@ export function GameNotifier() {
   const current = watch(store);
   // Estado já visto: ao abrir o app só registra, sem avisar.
   const [stamps, setStamps] = useState(() => stampsOf(current));
-  const [notice, setNotice] = useState<Notice>();
+  // Avisos em fila: o status aplicado aparece antes da troca de turno que vem logo depois.
+  const [queue, setQueue] = useState<Notice[]>([]);
+  const notice = queue[0];
   const [opacity] = useState(() => new Animated.Value(0));
 
   // Ajusta o estado durante a renderização quando algo muda (padrão recomendado pelo React).
@@ -115,9 +133,12 @@ export function GameNotifier() {
   if (changedKeys) {
     setStamps(next);
     const changed = current.filter((n) => n.notify && stamps[n.slot] !== n.key);
-    // Se mais de uma coisa mudou, prioriza a que pede ação deste aparelho.
-    const pick = changed.find((n) => n.mine) ?? changed[0];
-    if (pick) setNotice(pick);
+    const statuses = changed.filter((n) => n.status);
+    const others = changed.filter((n) => !n.status);
+    // Se mais de um turno mudou, prioriza o que pede ação deste aparelho.
+    const pick = others.find((n) => n.mine) ?? others[0];
+    const added = [...statuses, ...(pick ? [pick] : [])];
+    if (added.length) setQueue((q) => [...q, ...added]);
   }
 
   useEffect(() => {
@@ -126,7 +147,7 @@ export function GameNotifier() {
     opacity.setValue(0);
     Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
     const timer = setTimeout(() => {
-      Animated.timing(opacity, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => setNotice(undefined));
+      Animated.timing(opacity, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => setQueue((q) => q.slice(1)));
     }, VISIBLE_MS);
     return () => clearTimeout(timer);
   }, [notice, opacity]);
@@ -134,7 +155,7 @@ export function GameNotifier() {
   if (!notice) return null;
 
   const open = () => {
-    setNotice(undefined);
+    setQueue((q) => q.slice(1));
     router.push(notice.href);
   };
 
@@ -145,9 +166,9 @@ export function GameNotifier() {
           accessibilityRole="alert"
           accessibilityLiveRegion="polite"
           onPress={open}
-          style={[styles.banner, notice.mine && styles.bannerMine]}
+          style={[styles.banner, notice.mine && styles.bannerMine, notice.color && { borderColor: notice.color }]}
         >
-          <Text style={[styles.title, notice.mine && styles.titleMine]}>{notice.title}</Text>
+          <Text style={[styles.title, notice.mine && styles.titleMine, notice.color && { color: notice.color }]}>{notice.title}</Text>
           <Text style={[styles.detail, notice.mine && styles.detailMine]}>{notice.detail}</Text>
         </Pressable>
       </Animated.View>

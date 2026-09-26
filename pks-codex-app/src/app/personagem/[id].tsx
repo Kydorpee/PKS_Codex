@@ -7,8 +7,10 @@ import { BattleView } from '@/components/battle-view';
 import { CharacterBars } from '@/components/character-stats';
 import { InventoryModal } from '@/components/inventory-modal';
 import { CoinIcon, StarIcon } from '@/components/monster-stats';
+import { LevelUpBlock } from '@/components/level-up-block';
+import { openLoots } from '@/components/loot-panel';
 import { Avatar, Button, Card, Muted, Screen, SectionHeader, Stat, TabBar, text } from '@/components/ui';
-import { currentTurn } from '@/lib/engine';
+import { currentLooter, currentTurn } from '@/lib/engine';
 import { useStore } from '@/lib/store';
 import { WIDGET_CHARACTER_KEY } from '@/lib/storage-keys';
 import { colors, radius, spacing } from '@/lib/theme';
@@ -16,12 +18,12 @@ import { refreshWidget } from '@/widget';
 
 export default function CharacterSheet() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { characters, codexes, joinCodex, leaveCodex, deleteCharacter, respondAbilityOffer } = useStore();
+  const { characters, codexes, joinCodex, leaveCodex, deleteCharacter, respondAbilityOffer, respondClassOffer, updateCharacter } = useStore();
   const [code, setCode] = useState('');
   const [bagOpen, setBagOpen] = useState(false);
   const [joining, setJoining] = useState(false);
   // Aba escolhida; sem escolha, abre na batalha quando houver uma.
-  const [chosenTab, setChosenTab] = useState<'ficha' | 'batalha'>();
+  const [chosenTab, setChosenTab] = useState<'ficha' | 'habilidades' | 'batalha'>();
 
   // O widget da tela inicial mostra o último personagem aberto.
   useEffect(() => {
@@ -44,10 +46,26 @@ export default function CharacterSheet() {
   const battle = codex?.battles.find((b) => b.status !== 'encerrada' && !b.xpAwarded && b.participants.some((p) => p.characterId === character.id));
   const battleMonster = codex?.monsters.find((m) => m.id === battle?.monsterId);
   const inBattle = !!(codex && battle && battleMonster);
-  const tab = inBattle ? (chosenTab ?? 'batalha') : 'ficha';
+  const tab = inBattle ? (chosenTab ?? 'batalha') : chosenTab === 'batalha' ? 'ficha' : (chosenTab ?? 'ficha');
+  const klass = codex?.classes.find((k) => k.id === character.classId);
+  const classOffers = codex?.classes.filter((k) => k.offeredTo.includes(character.id)) ?? [];
+  const classAbilityIds = new Set(codex?.abilities.filter((a) => a.classId && a.classId === character.classId).map((a) => a.id));
+  const pendingOffers = classOffers.length + offers.length;
   const battleBadge =
     battle?.status === 'vitoria' ? '🏆' : battle && currentTurn(battle) === character.id && !battle.pending ? 'Sua vez!' : undefined;
-  const levelUps = (codex?.levelUps.filter((e) => e.characterId === character.id) ?? []).slice(-3).reverse();
+  const dismissed = character.dismissedLevelUps ?? [];
+  const levelUps = (codex?.levelUps.filter((e) => e.characterId === character.id && !dismissed.includes(e.id)) ?? []).reverse();
+  const levelRows = levelUps.map((e) => ({
+    id: e.id,
+    title: `🆙 Nível ${e.level}!`,
+    pending: !e.resolved,
+    lines: e.resolved ? e.rewards.map((r) => `• ${r}`) : ['Aguardando o Mestre definir o evento de nível.'],
+  }));
+  const clearLevelUps = () =>
+    updateCharacter(character.id, (c) => ({
+      ...c,
+      dismissedLevelUps: [...(c.dismissedLevelUps ?? []), ...levelUps.map((e) => e.id)],
+    }));
   const itemCount = character.inventory.reduce((sum, i) => sum + i.quantity, 0);
 
   const join = async () => {
@@ -77,16 +95,107 @@ export default function CharacterSheet() {
       },
     ]);
 
-  const tabs = inBattle && (
+  const tabs = (
     <TabBar
       value={tab}
       onChange={setChosenTab}
       tabs={[
         { key: 'ficha', label: '📜 Ficha' },
-        { key: 'batalha', label: '⚔️ Batalha', badge: battleBadge },
+        { key: 'habilidades', label: '✨ Habilidades', badge: pendingOffers ? `${pendingOffers} nova(s)` : undefined },
+        ...(inBattle ? [{ key: 'batalha' as const, label: '⚔️ Batalha', badge: battleBadge }] : []),
       ]}
     />
   );
+
+  const chooseClass = (classId: string, name: string) =>
+    Alert.alert(
+      'Trocar de classe?',
+      `${character.name} vira ${name}${klass ? ` e deixa de ser ${klass.name}, perdendo as habilidades dessa classe` : ''}.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Trocar', onPress: () => codex && respondClassOffer(character.id, codex.id, classId, true) },
+      ],
+    );
+
+  if (tab === 'habilidades') {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: character.name }} />
+        {tabs}
+
+        {codex && (
+          <Card style={styles.codexCard}>
+            <Muted>Classe</Muted>
+            <Text style={text.title}>{klass ? `${klass.emoji} ${klass.name}` : 'Sem classe'}</Text>
+            {klass?.description ? <Muted>{klass.description}</Muted> : null}
+            {!klass && <Muted>O Mestre ainda não definiu uma classe para você.</Muted>}
+          </Card>
+        )}
+
+        {codex && classOffers.length > 0 && (
+          <>
+            <SectionHeader title="Classes liberadas" />
+            <Muted>O Mestre liberou estas classes para você. Escolher uma troca a sua classe atual.</Muted>
+            {classOffers.map((k) => {
+              const count = codex.abilities.filter((a) => a.classId === k.id).length;
+              return (
+                <Card key={k.id}>
+                  <Text style={text.strong}>
+                    {k.emoji} {k.name}
+                  </Text>
+                  {!!k.description && <Muted>{k.description}</Muted>}
+                  <Muted>{count} habilidade(s) de classe</Muted>
+                  <View style={styles.offerActions}>
+                    <Button small title="Escolher" style={{ flex: 1 }} onPress={() => chooseClass(k.id, k.name)} />
+                    <Button
+                      small
+                      variant="secondary"
+                      title="Recusar"
+                      style={{ flex: 1 }}
+                      onPress={() => respondClassOffer(character.id, codex.id, k.id, false)}
+                    />
+                  </View>
+                </Card>
+              );
+            })}
+          </>
+        )}
+
+      {codex && offers.length > 0 && (
+        <>
+          <SectionHeader title="Habilidades oferecidas" />
+          <Muted>O Mestre liberou estas habilidades para você. Aceite para registrá-las no personagem.</Muted>
+          {offers.map((a) => (
+            <AbilityCard key={a.id} ability={a}>
+              <View style={styles.offerActions}>
+                <Button small title="Aceitar" style={{ flex: 1 }} onPress={() => respondAbilityOffer(character.id, codex.id, a.id, true)} />
+                <Button
+                  small
+                  variant="secondary"
+                  title="Recusar"
+                  style={{ flex: 1 }}
+                  onPress={() => respondAbilityOffer(character.id, codex.id, a.id, false)}
+                />
+              </View>
+            </AbilityCard>
+          ))}
+        </>
+      )}
+
+      <SectionHeader title="Habilidades" />
+      {character.abilities.length === 0 ? (
+        <Muted>Nenhuma habilidade ainda. Elas são liberadas pelo Mestre do Codex.</Muted>
+      ) : (
+        character.abilities.map((a) => (
+          <AbilityCard key={a.id} ability={a}>
+            {classAbilityIds.has(a.id) && klass ? <Muted>Habilidade de classe: {klass.emoji} {klass.name}</Muted> : null}
+          </AbilityCard>
+        ))
+      )}
+
+      </Screen>
+    );
+  }
 
   if (tab === 'batalha' && codex && battle) {
     return (
@@ -171,18 +280,45 @@ export default function CharacterSheet() {
         ))}
       </View>
 
-      {levelUps.map((e) => (
-        <Card key={e.id} style={styles.battleCard}>
-          <Text style={text.accentStrong}>🆙 Nível {e.level}!</Text>
-          {e.resolved ? e.rewards.map((r, i) => <Muted key={i}>• {r}</Muted>) : <Muted>Aguardando o Mestre definir o evento de nível.</Muted>}
-        </Card>
-      ))}
+      {codex && (
+        <LevelUpBlock
+          rows={levelRows}
+          onClear={clearLevelUps}
+          emptyText="Nenhuma notificação de nível."
+          pendingWarning="Os avisos que ainda esperam o Mestre também somem daqui. As recompensas continuam valendo na sua ficha."
+        />
+      )}
 
       {/* Locais liberados pelo Mestre */}
       {codex && (
         <>
           <SectionHeader title="Locais" />
-          {shops.length === 0 ? (
+          {openLoots(codex)
+            .filter((b) => b.loot!.order.includes(character.id))
+            .map((b) => {
+              const mine = currentLooter(b) === character.id;
+              const m = codex.monsters.find((x) => x.id === b.monsterId);
+              return (
+                <Card
+                  key={b.id}
+                  style={mine && styles.lootMine}
+                  onPress={() => router.push({ pathname: '/espolios', params: { codexId: codex.id, battleId: b.id, characterId: character.id } })}
+                >
+                  <View style={styles.shopRow}>
+                    <Text style={{ fontSize: 28 }}>💰</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={text.strong}>Espólios · {m?.name ?? 'monstro'}</Text>
+                      <Muted>
+                        {mine ? '⭐ Sua vez de pegar itens!' : `Vez de ${characters.find((c) => c.id === currentLooter(b))?.name ?? '?'}`} ·{' '}
+                        {b.loot!.items.reduce((n, i) => n + i.quantity, 0)} item(ns)
+                      </Muted>
+                    </View>
+                    <Text style={text.accent}>›</Text>
+                  </View>
+                </Card>
+              );
+            })}
+          {shops.length === 0 && openLoots(codex).length === 0 ? (
             <Muted>O Mestre ainda não liberou nenhum local para você.</Muted>
           ) : (
             shops.map((s) => (
@@ -202,34 +338,6 @@ export default function CharacterSheet() {
             ))
           )}
         </>
-      )}
-
-      {codex && offers.length > 0 && (
-        <>
-          <SectionHeader title="Habilidades oferecidas" />
-          <Muted>O Mestre liberou estas habilidades para você. Aceite para registrá-las no personagem.</Muted>
-          {offers.map((a) => (
-            <AbilityCard key={a.id} ability={a}>
-              <View style={styles.offerActions}>
-                <Button small title="Aceitar" style={{ flex: 1 }} onPress={() => respondAbilityOffer(character.id, codex.id, a.id, true)} />
-                <Button
-                  small
-                  variant="secondary"
-                  title="Recusar"
-                  style={{ flex: 1 }}
-                  onPress={() => respondAbilityOffer(character.id, codex.id, a.id, false)}
-                />
-              </View>
-            </AbilityCard>
-          ))}
-        </>
-      )}
-
-      <SectionHeader title="Habilidades" />
-      {character.abilities.length === 0 ? (
-        <Muted>Nenhuma habilidade ainda. Elas são liberadas pelo Mestre do Codex.</Muted>
-      ) : (
-        character.abilities.map((a) => <AbilityCard key={a.id} ability={a} />)
       )}
 
       <View style={styles.actions}>
@@ -254,6 +362,7 @@ export default function CharacterSheet() {
 
 const styles = StyleSheet.create({
   codexCard: { borderColor: colors.goldDim },
+  lootMine: { borderColor: colors.primary, borderWidth: 2 },
   joinRow: { flexDirection: 'row', gap: spacing.sm },
   codeInput: {
     flex: 1,
@@ -294,7 +403,6 @@ const styles = StyleSheet.create({
   badgeText: { color: colors.text, fontSize: 12, fontWeight: '800' },
   level: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  battleCard: { borderColor: colors.primary, borderWidth: 2 },
   shopRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   offerActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xl },

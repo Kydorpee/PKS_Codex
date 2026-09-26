@@ -18,11 +18,11 @@ import type { Data, Result } from './engine';
 import { firebase } from './firebase';
 import { newId } from './ids';
 import { toSharedPhoto } from './photos';
-import { addToInventory, normalizeCharacter, normalizeCodex } from './rules';
+import { addToInventory, applyClass, normalizeCharacter, normalizeCodex, startingClassOf, toCharacterAbility } from './rules';
 import { CACHE_CHARACTERS_KEY, CACHE_UID_KEY, CHARACTERS_KEY, CODEXES_KEY, MIGRATED_KEY } from './storage-keys';
 import { diffData, replaceDoc, sameDoc, withOwner, type DocChange, type DocKind, type Doc } from './sync';
 import { refreshWidget } from '@/widget';
-import { MAX_CHARACTERS, type Ability, type Character, type Codex, type CodexAbility } from './types';
+import { MAX_CHARACTERS, type Character, type Codex, type CodexAbility, type CodexClass } from './types';
 
 type Store = Data & {
   /** Há dados para mostrar (do servidor ou da cópia guardada no aparelho). */
@@ -49,25 +49,40 @@ type Store = Data & {
   /** Procura o código no servidor; retorna mensagem de erro, se houver. */
   joinCodex: (characterId: string, code: string) => Promise<string | null>;
   leaveCodex: (characterId: string) => void;
+  /** O Mestre tira um personagem do Codex. Retorna mensagem de erro, se houver. */
+  removeFromCodex: (codexId: string, characterId: string) => string | null;
   buyItem: (characterId: string, codexId: string, shopId: string, itemId: string) => string | null;
   /** Cria/edita uma habilidade do Codex e atualiza quem já a possui. */
   saveAbility: (codexId: string, ability: CodexAbility) => void;
   deleteAbility: (codexId: string, abilityId: string) => void;
   respondAbilityOffer: (characterId: string, codexId: string, abilityId: string, accept: boolean) => void;
   revokeAbility: (characterId: string, abilityId: string) => void;
+  /** Cria/edita uma classe do Codex. */
+  saveClass: (codexId: string, klass: CodexClass) => void;
+  /** Apaga a classe e as habilidades dela; quem a tinha fica sem classe. */
+  deleteClass: (codexId: string, classId: string) => void;
+  /** Classe que o personagem recebe ao entrar no Codex. */
+  setStartingClass: (codexId: string, classId: string) => void;
+  /** O jogador escolhe (troca para) ou recusa uma classe liberada pelo Mestre. */
+  respondClassOffer: (characterId: string, codexId: string, classId: string, accept: boolean) => void;
   /** Executa uma regra do engine (batalha, nível). Retorna mensagem de erro, se houver. */
   act: (rule: (data: Data) => Result) => string | null;
 };
 
-/** Remove um personagem das lojas, ofertas de habilidade e eventos de nível pendentes de um Codex. */
+/** Remove um personagem das lojas, ofertas de habilidade e classe e eventos de nível pendentes de um Codex. */
 const withoutCharacter = (codex: Codex, characterId: string): Codex => ({
   ...codex,
+  classes: codex.classes.map((k) => ({ ...k, offeredTo: k.offeredTo.filter((id) => id !== characterId) })),
   levelUps: codex.levelUps.filter((e) => e.resolved || e.characterId !== characterId),
   shops: codex.shops.map((s) => ({ ...s, visibleTo: s.visibleTo.filter((id) => id !== characterId) })),
   abilities: codex.abilities.map((a) => ({ ...a, offeredTo: a.offeredTo.filter((id) => id !== characterId) })),
 });
 
-const toCharacterAbility = ({ offeredTo: _, ...ability }: CodexAbility): Ability => ability;
+/** Personagem saindo do Codex: perde a classe (e as habilidades dela). */
+const leaveClass = (data: Data, c: Character): Character => {
+  const codex = data.codexes.find((x) => x.id === c.codexId);
+  return { ...(codex ? applyClass(c, codex, undefined) : c), codexId: undefined };
+};
 
 const mapCharacter = (data: Data, id: string, change: (c: Character) => Character): Data => ({
   ...data,
@@ -482,7 +497,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             const known = d.codexes.find((c) => c.id === found.id);
             const startingItems = (known ?? found).startingItems;
             // O inventário inicial é entregue uma vez por Codex: sair e voltar não duplica.
-            const enter = (c: Character): Character => {
+            const codex = known ?? found;
+            const enter = (entering: Character): Character => {
+              // Quem entra recebe a classe inicial do Codex (e as habilidades dela).
+              const c =
+                entering.codexId === found.id
+                  ? entering
+                  : applyClass({ ...entering, classId: undefined }, codex, startingClassOf(codex));
               const received = c.startingItemsFrom ?? [];
               if (received.includes(found.id)) return { ...c, codexId: found.id };
               return {
@@ -505,9 +526,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       leaveCodex: (characterId: string) =>
         mutate((d) => ({
-          characters: d.characters.map((c) => (c.id === characterId ? { ...c, codexId: undefined } : c)),
+          characters: d.characters.map((c) => (c.id === characterId ? leaveClass(d, c) : c)),
           codexes: d.codexes.map((codex) => withoutCharacter(codex, characterId)),
         })),
+
+      removeFromCodex: (codexId: string, characterId: string) => {
+        const { characters, codexes } = current.current;
+        const codex = codexes.find((c) => c.id === codexId);
+        const character = characters.find((c) => c.id === characterId && c.codexId === codexId);
+        if (!codex || !character) return 'Personagem não está neste Codex.';
+        const fighting = codex.battles.some((b) => b.status === 'ativa' && b.participants.some((p) => p.characterId === characterId));
+        if (fighting) return `${character.name} está em uma batalha ativa. Encerre a batalha antes de remover.`;
+        // O jogador perde o acesso ao Codex se não tiver outro personagem nele.
+        const keepsMember = characters.some((c) => c.id !== characterId && c.codexId === codexId && c.ownerUid === character.ownerUid);
+        mutate((d) => ({
+          characters: d.characters.map((c) => (c.id === characterId ? leaveClass(d, c) : c)),
+          codexes: d.codexes.map((cx) =>
+            cx.id === codexId
+              ? {
+                  ...withoutCharacter(cx, characterId),
+                  members: keepsMember ? cx.members : cx.members.filter((uid) => uid !== character.ownerUid),
+                }
+              : cx,
+          ),
+        }));
+        return null;
+      },
 
       buyItem: (characterId: string, codexId: string, shopId: string, itemId: string) => {
         const { characters, codexes } = current.current;
@@ -530,19 +574,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       saveAbility: (codexId: string, ability: CodexAbility) => {
         const updated = toCharacterAbility(ability);
-        mutate((d) => ({
-          codexes: mapCodex(d, codexId, (codex) => ({
-            ...codex,
-            abilities: codex.abilities.some((a) => a.id === ability.id)
-              ? codex.abilities.map((a) => (a.id === ability.id ? ability : a))
-              : [...codex.abilities, ability],
-          })).codexes,
-          characters: d.characters.map((c) =>
-            c.abilities.some((a) => a.id === ability.id)
-              ? { ...c, abilities: c.abilities.map((a) => (a.id === ability.id ? updated : a)) }
-              : c,
-          ),
-        }));
+        mutate((d) => {
+          const previous = d.codexes.find((c) => c.id === codexId)?.abilities.find((a) => a.id === ability.id);
+          return {
+            codexes: mapCodex(d, codexId, (codex) => ({
+              ...codex,
+              abilities: codex.abilities.some((a) => a.id === ability.id)
+                ? codex.abilities.map((a) => (a.id === ability.id ? ability : a))
+                : [...codex.abilities, ability],
+            })).codexes,
+            characters: d.characters.map((c) => {
+              const owns = c.abilities.some((a) => a.id === ability.id);
+              const inCodex = c.codexId === codexId;
+              // Habilidade de classe: todos da classe a recebem; quem só a tinha pela classe antiga perde.
+              if (inCodex && ability.classId && c.classId === ability.classId) {
+                return { ...c, abilities: owns ? c.abilities.map((a) => (a.id === ability.id ? updated : a)) : [...c.abilities, updated] };
+              }
+              if (inCodex && owns && previous?.classId && previous.classId !== ability.classId && c.classId === previous.classId) {
+                return { ...c, abilities: c.abilities.filter((a) => a.id !== ability.id) };
+              }
+              return owns ? { ...c, abilities: c.abilities.map((a) => (a.id === ability.id ? updated : a)) } : c;
+            }),
+          };
+        });
       },
 
       deleteAbility: (codexId: string, abilityId: string) =>
@@ -550,6 +604,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           codexes: mapCodex(d, codexId, (codex) => ({ ...codex, abilities: codex.abilities.filter((a) => a.id !== abilityId) })).codexes,
           characters: d.characters.map((c) => ({ ...c, abilities: c.abilities.filter((a) => a.id !== abilityId) })),
         })),
+
+      saveClass: (codexId: string, klass: CodexClass) =>
+        mutate((d) =>
+          mapCodex(d, codexId, (codex) => ({
+            ...codex,
+            classes: codex.classes.some((k) => k.id === klass.id)
+              ? codex.classes.map((k) => (k.id === klass.id ? klass : k))
+              : [...codex.classes, klass],
+          })),
+        ),
+
+      deleteClass: (codexId: string, classId: string) =>
+        mutate((d) => {
+          const codex = d.codexes.find((c) => c.id === codexId);
+          if (!codex) return d;
+          return {
+            characters: d.characters.map((c) => (c.codexId === codexId && c.classId === classId ? applyClass(c, codex, undefined) : c)),
+            codexes: mapCodex(d, codexId, (cx) => ({
+              ...cx,
+              classes: cx.classes.filter((k) => k.id !== classId),
+              abilities: cx.abilities.filter((a) => a.classId !== classId),
+              startingClassId: cx.startingClassId === classId ? undefined : cx.startingClassId,
+            })).codexes,
+          };
+        }),
+
+      setStartingClass: (codexId: string, classId: string) =>
+        mutate((d) => mapCodex(d, codexId, (codex) => ({ ...codex, startingClassId: classId }))),
+
+      respondClassOffer: (characterId: string, codexId: string, classId: string, accept: boolean) =>
+        mutate((d) => {
+          const codex = d.codexes.find((c) => c.id === codexId);
+          const klass = codex?.classes.find((k) => k.id === classId);
+          if (!codex || !klass || !klass.offeredTo.includes(characterId)) return d;
+          const next = mapCodex(d, codexId, (cx) => ({
+            ...cx,
+            classes: cx.classes.map((k) => (k.id === classId ? { ...k, offeredTo: k.offeredTo.filter((id) => id !== characterId) } : k)),
+          }));
+          return accept ? mapCharacter(next, characterId, (c) => applyClass(c, codex, classId)) : next;
+        }),
 
       respondAbilityOffer: (characterId: string, codexId: string, abilityId: string, accept: boolean) => {
         const offered = current.current.codexes.find((c) => c.id === codexId)?.abilities.find((a) => a.id === abilityId);

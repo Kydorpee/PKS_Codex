@@ -2,7 +2,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MonsterStats } from '@/components/monster-stats';
-import { PixelScene, TERRAINS } from '@/components/pixel-scene';
+import { PixelScene, TerrainPicker } from '@/components/pixel-scene';
 import { Avatar, Button, CheckRow, Muted, Paper, Screen, SectionHeader, text } from '@/components/ui';
 import { startBattle } from '@/lib/engine';
 import { useStore } from '@/lib/store';
@@ -75,19 +75,7 @@ export default function NewBattle() {
       <View style={styles.preview}>
         <PixelScene terrain={terrain} />
       </View>
-      <View style={styles.wrap}>
-        {TERRAINS.map((t) => (
-          <Pressable
-            key={t.key}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: terrain === t.key }}
-            onPress={() => setTerrain(t.key)}
-            style={[styles.chip, terrain === t.key && styles.optionActive]}
-          >
-            <Text style={styles.chipText}>{t.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <TerrainPicker value={terrain} onChange={setTerrain} />
 
       <SectionHeader title="Participantes" />
       {players.length === 0 && <Muted>Nenhum jogador no Codex.</Muted>}

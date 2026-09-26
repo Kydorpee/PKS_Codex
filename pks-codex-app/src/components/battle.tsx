@@ -72,7 +72,7 @@ export function MonsterPanel({ monster, battle, reveal }: { monster: Monster; ba
         {battle.monsterStatuses.length > 0 && (
           <View style={styles.statusRow}>
             {battle.monsterStatuses.map((s) => (
-              <Text key={s.type} style={styles.systemStatus}>
+              <Text key={s.type} style={[styles.systemStatus, { color: STATUS_INFO[s.type].color }]}>
                 🔒 {STATUS_INFO[s.type].emoji} {STATUS_INFO[s.type].label} · {s.roundsLeft}t
               </Text>
             ))}
@@ -213,7 +213,7 @@ export function BattleLog({ battle }: { battle: Battle }) {
   return (
     <Card>
       {entries.map((e) => (
-        <Text key={e.id} style={[styles.logLine, { color: toneColor[e.tone] }]}>
+        <Text key={e.id} style={[styles.logLine, { color: e.status ? STATUS_INFO[e.status].color : toneColor[e.tone] }]}>
           {e.text}
         </Text>
       ))}
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   balloonText: { color: colors.textOnDark, fontSize: 14 },
   balloonCondition: { color: colors.gold, fontSize: 13, fontStyle: 'italic' },
   statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  systemStatus: { color: colors.xp, fontSize: 12, fontWeight: '700' },
+  systemStatus: { fontSize: 12, fontWeight: '700' },
   scene: { marginTop: spacing.sm, borderRadius: radius.sm, overflow: 'hidden', borderWidth: 2, borderColor: colors.goldDim },
   reveal: { marginTop: spacing.sm, gap: 2 },
   dice: { paddingVertical: spacing.md },

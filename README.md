@@ -116,7 +116,7 @@ Na raiz do repositório há builds prontos para Android:
 | Arquivo | Para quem |
 | --- | --- |
 | `PKS-Codex-arm64.apk` | A maioria dos celulares Android atuais (arquivo menor) |
-| `PKS-Codex.apk` | Build universal, para qualquer arquitetura |
+| `PKS-Codex.apk` | Qualquer celular Android, inclusive os mais antigos (ARM 32 e 64 bits); não roda em emulador x86 |
 
 Copie o APK para o celular, abra o arquivo e permita a instalação de fontes desconhecidas quando o Android pedir.
 

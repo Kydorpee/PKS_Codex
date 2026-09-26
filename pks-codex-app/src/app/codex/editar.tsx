@@ -17,6 +17,7 @@ const newCodex = (usedCodes: string[], fields: CodexFields): Codex => ({
   monsters: [],
   shops: [],
   abilities: [],
+  classes: [],
   battles: [],
   levelUps: [],
   members: [],

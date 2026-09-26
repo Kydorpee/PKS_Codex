@@ -73,6 +73,7 @@ export function loadDemo(data: Data): Result {
     monsters,
     shops,
     abilities,
+    classes: [],
     battles: [],
     // Bram acabou de subir de nível e aguarda o evento do Mestre.
     levelUps: [{ id: newId(), characterId: bram.id, level: 2, resolved: false, rewards: [], createdAt: Date.now() }],

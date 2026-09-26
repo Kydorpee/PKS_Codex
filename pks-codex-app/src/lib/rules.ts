@@ -1,5 +1,5 @@
 import { newId } from './ids';
-import type { ActiveStatus, Character, Codex, Item, LevelUpEvent, StatusType } from './types';
+import type { Ability, ActiveStatus, Character, Codex, CodexAbility, Item, LevelUpEvent, StatusType } from './types';
 
 export const DICE = [4, 6, 8, 10, 12, 20] as const;
 
@@ -7,6 +7,10 @@ export const rollDie = (sides: number) => 1 + Math.floor(Math.random() * sides);
 
 type StatusInfo = {
   label: string;
+  /** Como o alvo fica, ex.: "envenenado". */
+  condition: string;
+  /** Cor do texto do status (legível sobre o pergaminho). */
+  color: string;
   emoji: string;
   rounds: number;
   /** Dano automático no início do turno de quem está afetado. */
@@ -17,10 +21,10 @@ type StatusInfo = {
 };
 
 export const STATUS_INFO: Record<StatusType, StatusInfo> = {
-  veneno: { label: 'Veneno', emoji: '🧪', rounds: 3, tickDie: 4, effect: '1d4 de dano por turno, 3 turnos' },
-  queimadura: { label: 'Queimadura', emoji: '🔥', rounds: 2, tickDie: 6, effect: '1d6 de dano por turno, 2 turnos' },
-  congelamento: { label: 'Congelamento', emoji: '❄️', rounds: 1, skipsTurn: true, effect: 'perde o próximo turno' },
-  atordoamento: { label: 'Atordoamento', emoji: '💫', rounds: 1, skipsTurn: true, effect: 'perde o próximo turno' },
+  veneno: { label: 'Veneno', condition: 'envenenado', color: '#7B2FBE', emoji: '🧪', rounds: 3, tickDie: 4, effect: '1d4 de dano por turno, 3 turnos' },
+  queimadura: { label: 'Queimadura', condition: 'queimado', color: '#C62828', emoji: '🔥', rounds: 2, tickDie: 6, effect: '1d6 de dano por turno, 2 turnos' },
+  congelamento: { label: 'Congelamento', condition: 'congelado', color: '#1565C0', emoji: '❄️', rounds: 1, skipsTurn: true, effect: 'perde o próximo turno' },
+  atordoamento: { label: 'Atordoamento', condition: 'atordoado', color: '#B8860B', emoji: '💫', rounds: 1, skipsTurn: true, effect: 'perde o próximo turno' },
 };
 
 export const STATUS_TYPES = Object.keys(STATUS_INFO) as StatusType[];
@@ -78,6 +82,7 @@ export const normalizeCodex = (c: Codex): Codex => ({
   monsters: c.monsters ?? [],
   shops: c.shops ?? [],
   abilities: (c.abilities ?? []).map((a) => ({ ...a, offeredTo: a.offeredTo ?? [] })),
+  classes: (c.classes ?? []).map((k) => ({ ...k, offeredTo: k.offeredTo ?? [] })),
   battles: c.battles ?? [],
   levelUps: c.levelUps ?? [],
   startingItems: c.startingItems ?? [],
@@ -120,3 +125,23 @@ export function splitXp(
   }
   return result;
 }
+
+/** A cópia da habilidade na ficha (sem os dados de oferta do Codex). */
+export const toCharacterAbility = ({ offeredTo: _o, classId: _c, ...ability }: CodexAbility): Ability => ability;
+
+/**
+ * Troca a classe do personagem: tira as habilidades da classe antiga e entrega as da nova.
+ * Habilidades gerais (sem classe) ficam como estão.
+ */
+export function applyClass(character: Character, codex: Codex, classId: string | undefined): Character {
+  const old = new Set(codex.abilities.filter((a) => a.classId && a.classId === character.classId).map((a) => a.id));
+  const kept = character.abilities.filter((a) => !old.has(a.id));
+  const added = classId
+    ? codex.abilities.filter((a) => a.classId === classId && !kept.some((k) => k.id === a.id)).map(toCharacterAbility)
+    : [];
+  return { ...character, classId, abilities: [...kept, ...added] };
+}
+
+/** Classe dada a quem entra no Codex: a inicial escolhida pelo Mestre, ou a primeira criada. */
+export const startingClassOf = (codex: Codex) =>
+  codex.classes.find((k) => k.id === codex.startingClassId)?.id ?? codex.classes[0]?.id;

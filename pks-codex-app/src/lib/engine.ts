@@ -13,6 +13,7 @@ import {
   type Item,
   type LogTone,
   type Monster,
+  type StatusType,
   type Terrain,
 } from './types';
 
@@ -41,7 +42,7 @@ type Ctx = {
   battle: Battle;
   monster: Monster;
   character: (id: string) => Character | undefined;
-  log: (text: string, tone?: LogTone) => void;
+  log: (text: string, tone?: LogTone, status?: StatusType) => void;
 };
 
 function withBattle(data: Data, codexId: string, battleId: string, change: (ctx: Ctx) => void): Result {
@@ -55,8 +56,8 @@ function withBattle(data: Data, codexId: string, battleId: string, change: (ctx:
       battle,
       monster,
       character: (id) => draft.characters.find((c) => c.id === id),
-      log: (text, tone = 'info') => {
-        battle.log.push({ id: newId(), text, tone });
+      log: (text, tone = 'info', status) => {
+        battle.log.push({ id: newId(), text, tone, ...(status ? { status } : {}) });
         if (battle.log.length > 200) battle.log.shift();
       },
     });
@@ -84,11 +85,11 @@ function tickStatuses(ctx: Ctx, name: string, statuses: ActiveStatus[], hurt: (a
     if (info.tickDie) {
       const dmg = rollDie(info.tickDie);
       hurt(dmg);
-      ctx.log(`${info.emoji} ${name} sofre ${dmg} de dano por ${info.label.toLowerCase()}.`, 'status');
+      ctx.log(`${info.emoji} ${name} sofre ${dmg} de dano por ${info.label.toLowerCase()}.`, 'status', s.type);
     }
     if (info.skipsTurn) {
       skip = true;
-      ctx.log(`${info.emoji} ${name} está sob ${info.label.toLowerCase()} e perde o turno.`, 'status');
+      ctx.log(`${info.emoji} ${name} está sob ${info.label.toLowerCase()} e perde o turno.`, 'status', s.type);
     }
     if (s.roundsLeft > 1) remaining.push({ ...s, roundsLeft: s.roundsLeft - 1 });
   }
@@ -102,7 +103,20 @@ function victory(ctx: Ctx) {
   ctx.battle.monsterStatuses = [];
   ctx.monster.defeated = true;
   ctx.log(`☠️ ${ctx.monster.name} foi derrotado!`, 'dano');
+  openLoot(ctx);
 }
+
+/** O espólio do monstro vai para o local "Espólios": só personagens vivos têm vez. */
+function openLoot(ctx: Ctx) {
+  const items = ctx.monster.loot.filter((i) => i.name.trim() && i.quantity > 0).map((i) => ({ ...i }));
+  const order = ctx.battle.order.filter((id) => id !== MONSTER_TURN && (ctx.character(id)?.hp ?? 0) > 0);
+  if (items.length === 0 || order.length === 0) return;
+  ctx.battle.loot = { items, order, turnIndex: 0, done: false };
+  ctx.log(`💰 O espólio de ${ctx.monster.name} está em Espólios. Vez de ${ctx.character(order[0])?.name ?? '?'} pegar itens.`, 'cura');
+}
+
+/** Personagem da vez nos Espólios (ou nenhum, se já acabou). */
+export const currentLooter = (battle: Battle) => (battle.loot && !battle.loot.done ? battle.loot.order[battle.loot.turnIndex] : undefined);
 
 /** Passa para o próximo turno válido, aplicando status de início de turno. */
 function advance(ctx: Ctx) {
@@ -141,18 +155,25 @@ function advance(ctx: Ctx) {
   }
 }
 
-/** Sorteia a chance de status (d100). O resultado é do sistema, não do Mestre. */
-function tryStatus(ctx: Ctx, targetName: string, type: string | undefined, chance: number | undefined, apply: () => void) {
+/**
+ * Sorteia a chance de status (d100) quando o Mestre aplica o dano. O resultado é do sistema,
+ * não do Mestre; se acertar, fica em `lastStatus` para todos receberem o aviso.
+ */
+function tryStatus(ctx: Ctx, targetName: string, type: StatusType | undefined, chance: number | undefined, apply: () => void) {
   if (!type || !chance) return;
-  const info = STATUS_INFO[type as keyof typeof STATUS_INFO];
+  const info = STATUS_INFO[type];
   const roll = rollDie(100);
   const hit = roll <= chance;
-  if (hit) apply();
+  if (hit) {
+    apply();
+    ctx.battle.lastStatus = { id: newId(), target: targetName, type, chance, roll };
+  }
   ctx.log(
     `🎲 Sistema: chance de ${info.label.toLowerCase()} ${chance}% — rolou ${roll}. ${
       hit ? `${info.emoji} ${targetName} foi afetado!` : `${targetName} resistiu.`
     }`,
     'status',
+    type,
   );
 }
 
@@ -230,8 +251,8 @@ export const rollBattleDie = (data: Data, codexId: string, battleId: string, sid
 export type PlayerAction =
   | { kind: 'observar' }
   | { kind: 'fugir' }
-  | { kind: 'fisico' }
-  | { kind: 'habilidade'; abilityId: string }
+  | { kind: 'fisico'; dice: number }
+  | { kind: 'habilidade'; abilityId: string; dice: number }
   | { kind: 'item'; itemId: string };
 
 export const playerAction = (data: Data, codexId: string, battleId: string, characterId: string, action: PlayerAction) =>
@@ -242,6 +263,7 @@ export const playerAction = (data: Data, codexId: string, battleId: string, char
     if (battle.pending) fail('Aguarde o Mestre resolver a ação.');
     const c = ctx.character(characterId) ?? fail('Personagem não encontrado.');
     const p = battle.participants.find((x) => x.characterId === characterId)!;
+    if ((action.kind === 'fisico' || action.kind === 'habilidade') && !(action.dice >= 1)) fail('Digite o valor do dado.');
 
     switch (action.kind) {
       case 'observar':
@@ -255,16 +277,18 @@ export const playerAction = (data: Data, codexId: string, battleId: string, char
         return advance(ctx);
       }
       case 'fisico':
-        battle.pending = { characterId, kind: 'fisico', label: 'Golpe físico' };
-        ctx.log(`⚔️ ${c.name} desfere um golpe físico.`);
+        battle.pending = { characterId, kind: 'fisico', label: 'Golpe físico', dice: action.dice };
+        ctx.log(`⚔️ ${c.name} desfere um golpe físico (🎲 ${action.dice}).`);
         return;
       case 'habilidade': {
         const a = c.abilities.find((x) => x.id === action.abilityId) ?? fail('Habilidade não encontrada.');
         const pool = a.kind === 'magica' ? 'mana' : 'stamina';
         if (c[pool] < a.cost) fail(`${a.kind === 'magica' ? 'Mana' : 'Estamina'} insuficiente.`);
         c[pool] -= a.cost;
-        battle.pending = { characterId, kind: 'habilidade', label: a.name, abilityId: a.id };
-        ctx.log(`${a.kind === 'magica' ? '✨' : '💪'} ${c.name} usa ${a.name} (−${a.cost} ${a.kind === 'magica' ? 'mana' : 'estamina'}).`);
+        battle.pending = { characterId, kind: 'habilidade', label: a.name, abilityId: a.id, dice: action.dice };
+        ctx.log(
+          `${a.kind === 'magica' ? '✨' : '💪'} ${c.name} usa ${a.name} (−${a.cost} ${a.kind === 'magica' ? 'mana' : 'estamina'}, 🎲 ${action.dice}).`,
+        );
         return;
       }
       case 'item': {
@@ -278,7 +302,8 @@ export const playerAction = (data: Data, codexId: string, battleId: string, char
     }
   });
 
-export type Resolution = { type: 'dano'; amount: number } | { type: 'cura'; amount: number; targetId: string } | { type: 'nada' };
+/** Na cura, `targetIds` são personagens e/ou MONSTER_TURN (o monstro); cada alvo recebe `amount`. */
+export type Resolution = { type: 'dano'; amount: number } | { type: 'cura'; amount: number; targetIds: string[] } | { type: 'nada' };
 
 /** O Mestre define o resultado da ação do personagem. */
 export const resolveAction = (data: Data, codexId: string, battleId: string, res: Resolution) =>
@@ -302,10 +327,21 @@ export const resolveAction = (data: Data, codexId: string, battleId: string, res
         });
       }
     } else if (res.type === 'cura') {
-      const target = ctx.character(res.targetId) ?? fail('Alvo não encontrado.');
-      const healed = Math.min(res.amount, target.maxHp - target.hp);
-      target.hp += healed;
-      ctx.log(`💚 ${pending.label} de ${name} cura ${healed} de vida de ${target.name}.`, 'cura');
+      if (res.targetIds.length === 0) fail('Escolha quem será curado.');
+      if (!(res.amount >= 1)) fail('Digite quanto curar.');
+      for (const targetId of new Set(res.targetIds)) {
+        if (targetId === MONSTER_TURN) {
+          const healed = Math.min(res.amount, battle.monsterMaxHp - battle.monsterHp);
+          battle.monsterHp += healed;
+          ctx.log(`💚 ${pending.label} de ${name} cura ${healed} de vida de ${ctx.monster.name}.`, 'cura');
+          continue;
+        }
+        const target = ctx.character(targetId) ?? fail('Alvo não encontrado.');
+        if (isOut(battle, target)) fail(`${target.name} não está mais na batalha.`);
+        const healed = Math.min(res.amount, target.maxHp - target.hp);
+        target.hp += healed;
+        ctx.log(`💚 ${pending.label} de ${name} cura ${healed} de vida de ${target.name}.`, 'cura');
+      }
     } else {
       ctx.log(`${pending.label} de ${name} não teve efeito.`);
     }
@@ -315,12 +351,12 @@ export const resolveAction = (data: Data, codexId: string, battleId: string, res
     else advance(ctx);
   });
 
-/** Turno do monstro: o Mestre escolhe habilidade, alvo e dano. */
+/** Turno do monstro: o Mestre escolhe habilidade e alvo, digita o valor do dado e o dano. */
 export const monsterAction = (
   data: Data,
   codexId: string,
   battleId: string,
-  action: { abilityId?: string; targetId?: string; damage: number },
+  action: { abilityId?: string; targetId?: string; dice?: number; damage: number },
 ) =>
   withBattle(data, codexId, battleId, (ctx) => {
     const { battle, monster } = ctx;
@@ -332,8 +368,12 @@ export const monsterAction = (
     if (action.targetId) {
       const target = ctx.character(action.targetId) ?? fail('Alvo não encontrado.');
       if (isOut(battle, target)) fail(`${target.name} não está mais na batalha.`);
+      if (!(action.dice && action.dice >= 1)) fail('Digite o valor do dado do ataque.');
       target.hp = Math.max(0, target.hp - action.damage);
-      ctx.log(`👹 ${monster.name} usa ${ability?.name ?? 'um ataque'} em ${target.name}: ${action.damage} de dano.`, 'dano');
+      ctx.log(
+        `👹 ${monster.name} usa ${ability?.name ?? 'um ataque'} em ${target.name} (🎲 ${action.dice}): ${action.damage} de dano.`,
+        'dano',
+      );
       if (target.hp > 0) {
         tryStatus(ctx, target.name, ability?.status, ability?.statusChance, () => {
           target.statuses = addStatus(target.statuses, ability!.status!);
@@ -380,6 +420,49 @@ export const endBattle = (data: Data, codexId: string, battleId: string) =>
     ctx.battle.pending = undefined;
     clearStatuses(ctx);
     ctx.log('🏳️ O Mestre encerrou a batalha.');
+  });
+
+const requireLooter = (ctx: Ctx, characterId: string) => {
+  const loot = ctx.battle.loot;
+  if (!loot || loot.done) fail('Os espólios já acabaram.');
+  if (currentLooter(ctx.battle) !== characterId) fail('Não é a sua vez nos Espólios.');
+  return loot!;
+};
+
+/** Pega uma unidade de um item dos Espólios, na sua vez. */
+export const takeLoot = (data: Data, codexId: string, battleId: string, characterId: string, itemId: string) =>
+  withBattle(data, codexId, battleId, (ctx) => {
+    const loot = requireLooter(ctx, characterId);
+    const item = loot.items.find((i) => i.id === itemId) ?? fail('Este item já foi pego.');
+    const c = ctx.character(characterId);
+    if (!c || c.codexId !== codexId) fail('Personagem não está neste Codex.');
+    c!.inventory = addToInventory(c!.inventory, [{ ...item, quantity: 1 }]);
+    item.quantity -= 1;
+    loot.items = loot.items.filter((i) => i.quantity > 0);
+    ctx.log(`💰 ${c!.name} pegou ${item.name} dos Espólios.`, 'cura');
+  });
+
+/**
+ * Passa a vez nos Espólios. Sem `characterId`, é o Mestre pulando a vez de quem não responde.
+ * Depois da última vez, os itens que sobraram são apagados.
+ */
+export const passLoot = (data: Data, codexId: string, battleId: string, characterId?: string) =>
+  withBattle(data, codexId, battleId, (ctx) => {
+    const looter = currentLooter(ctx.battle);
+    const loot = requireLooter(ctx, characterId ?? looter ?? '');
+    const name = ctx.character(looter!)?.name ?? '?';
+    ctx.log(characterId ? `💰 ${name} passou a vez nos Espólios.` : `⏭️ O Mestre pulou a vez de ${name} nos Espólios.`);
+    // Pula quem saiu do Codex no meio do caminho.
+    do loot.turnIndex += 1;
+    while (loot.turnIndex < loot.order.length && ctx.character(loot.order[loot.turnIndex])?.codexId !== codexId);
+    if (loot.turnIndex >= loot.order.length) {
+      const left = loot.items.reduce((n, i) => n + i.quantity, 0);
+      loot.items = [];
+      loot.done = true;
+      ctx.log(left ? `🗑️ Todos tiveram a sua vez: ${left} item(ns) que sobraram nos Espólios foram apagados.` : '💰 Os Espólios foram esvaziados.');
+    } else {
+      ctx.log(`💰 Vez de ${ctx.character(loot.order[loot.turnIndex])?.name ?? '?'} nos Espólios.`);
+    }
   });
 
 /** Distribui XP após a vitória, conforme o dano causado. */

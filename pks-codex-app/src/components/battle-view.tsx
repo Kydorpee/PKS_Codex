@@ -2,9 +2,10 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BattleLog, DicePanel, MonsterPanel, ParticipantList, TurnOrder } from './battle';
+import { LootPanel } from './loot-panel';
 import { CharacterBars } from './character-stats';
 import { CostIcon, DamageStat, IconStat, StarIcon } from './monster-stats';
-import { TERRAINS } from './pixel-scene';
+import { TerrainPicker } from './pixel-scene';
 import { Button, Card, Muted, SectionHeader, text } from './ui';
 import {
   awardXp,
@@ -25,7 +26,7 @@ import {
 import { STATUS_INFO } from '@/lib/rules';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
-import { MONSTER_TURN, costLabel, type Battle, type Character, type Codex, type Monster } from '@/lib/types';
+import { MONSTER_TURN, costLabel, type Ability, type Battle, type Character, type Codex, type Monster } from '@/lib/types';
 
 const toInt = (v: string) => Math.max(0, parseInt(v.replace(/\D/g, ''), 10) || 0);
 
@@ -74,8 +75,9 @@ export function BattleView({ codexId, battleId, characterId }: { codexId: string
         ) : null)}
 
       {battle.status === 'vitoria' && (
-        <VictoryPanel codex={codex} battle={battle} monster={monster} characters={characters} isMaster={isMaster} run={run} />
+        <VictoryPanel codex={codex} battle={battle} characters={characters} isMaster={isMaster} run={run} />
       )}
+      {battle.loot && <LootPanel codex={codex} battle={battle} characterId={characterId} />}
       {battle.status === 'encerrada' && (
         <Card>
           <Text style={text.strong}>🏳️ Batalha encerrada pelo Mestre.</Text>
@@ -100,6 +102,7 @@ type PanelProps = {
 
 function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { viewer: Character }) {
   const [menu, setMenu] = useState<'raiz' | 'atacar' | 'habilidade' | 'item'>('raiz');
+  const [dice, setDice] = useState('');
   const turn = currentTurn(battle);
   const participant = battle.participants.find((p) => p.characterId === viewer.id);
 
@@ -129,7 +132,9 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
   const act = (action: PlayerAction) => {
     run((d) => playerAction(d, codex.id, battle.id, viewer.id, action));
     setMenu('raiz');
+    setDice('');
   };
+  const diceValue = toInt(dice);
 
   return (
     <Card style={styles.turnCard}>
@@ -142,9 +147,16 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
           <Button variant="secondary" title="🏃 Fugir (d20 ≥ 10)" onPress={() => act({ kind: 'fugir' })} />
         </View>
       )}
+      {(menu === 'atacar' || menu === 'habilidade') && (
+        <View style={{ gap: 2 }}>
+          <Muted>🎲 Valor do dado do ataque</Muted>
+          <NumberInput value={dice} onChange={setDice} placeholder="Ex.: 15" />
+          <Muted>Role o seu dado (ou o virtual acima) e digite o valor. O Mestre define o dano.</Muted>
+        </View>
+      )}
       {menu === 'atacar' && (
         <View style={styles.actions}>
-          <Button title="👊 Golpe físico" onPress={() => act({ kind: 'fisico' })} />
+          <Button title="👊 Golpe físico" disabled={!diceValue} onPress={() => act({ kind: 'fisico', dice: diceValue })} />
           <Button variant="secondary" icon={<CostIcon kind="magica" />} title="Habilidade" onPress={() => setMenu('habilidade')} />
           <Button variant="secondary" title="🎒 Usar item" onPress={() => setMenu('item')} />
           <Button variant="ghost" title="Voltar" onPress={() => setMenu('raiz')} />
@@ -159,10 +171,10 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
               <Button
                 key={a.id}
                 variant="secondary"
-                disabled={pool < a.cost}
+                disabled={pool < a.cost || !diceValue}
                 icon={<CostIcon kind={a.kind} />}
                 title={`${a.name} · ${costLabel(a)}${a.status ? ` · ${STATUS_INFO[a.status].emoji}` : ''}`}
-                onPress={() => act({ kind: 'habilidade', abilityId: a.id })}
+                onPress={() => act({ kind: 'habilidade', abilityId: a.id, dice: diceValue })}
               />
             );
           })}
@@ -208,6 +220,20 @@ function NumberInput({ value, onChange, placeholder }: { value: string; onChange
   );
 }
 
+/** Chance de status informada ao Mestre antes de aplicar o dano; o sorteio é do sistema. */
+function StatusChance({ ability, target }: { ability?: Ability; target: string }) {
+  if (!ability?.status || !ability.statusChance) return null;
+  const info = STATUS_INFO[ability.status];
+  return (
+    <View style={[styles.chance, { borderColor: info.color }]}>
+      <Text style={[text.strong, { color: info.color }]}>
+        {info.emoji} {ability.statusChance}% de chance de deixar {target} {info.condition}
+      </Text>
+      <Muted>Ao aplicar o dano, o sistema sorteia o status ({info.effect}).</Muted>
+    </View>
+  );
+}
+
 function MasterPanel({ codex, battle, monster, characters, run }: PanelProps & { monster: Monster }) {
   const turn = currentTurn(battle);
   const alive = battle.participants
@@ -215,6 +241,11 @@ function MasterPanel({ codex, battle, monster, characters, run }: PanelProps & {
     .filter((c): c is Character => !!c && !isOut(battle, c));
 
   const [amount, setAmount] = useState('');
+  const [dice, setDice] = useState('');
+  // Cura: aberta pelo botão "Curar"; alvos (personagens e/ou o monstro) e quanto curar.
+  const [healing, setHealing] = useState(false);
+  const [healIds, setHealIds] = useState<string[]>([]);
+  const [healAmount, setHealAmount] = useState('');
   const [abilityId, setAbilityId] = useState<string | undefined>(battle.monsterAbilityId);
   const [targetId, setTargetId] = useState<string | undefined>();
   const [condition, setCondition] = useState(battle.monsterCondition);
@@ -227,7 +258,11 @@ function MasterPanel({ codex, battle, monster, characters, run }: PanelProps & {
   const resolve = (res: Parameters<typeof resolveAction>[3]) => {
     run((d) => resolveAction(d, codex.id, battle.id, res));
     setAmount('');
+    setHealing(false);
+    setHealIds([]);
+    setHealAmount('');
   };
+  const toggleHeal = (id: string) => setHealIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
 
   const confirmEnd = () =>
     Alert.alert('Encerrar batalha?', 'Ninguém recebe XP se a batalha for encerrada sem vitória.', [
@@ -242,28 +277,39 @@ function MasterPanel({ codex, battle, monster, characters, run }: PanelProps & {
           <Text style={text.strong}>
             {pendingCharacter?.name}: {pending.label}
           </Text>
-          {pendingAbility && (
-            <DamageStat damage={pendingAbility.baseDamage}>
-              {pendingAbility.status
-                ? ` · ${STATUS_INFO[pendingAbility.status].emoji} ${pendingAbility.statusChance}% de ${STATUS_INFO[pendingAbility.status].label.toLowerCase()} (sorteio do sistema)`
-                : ''}
-            </DamageStat>
-          )}
-          <Muted>Defina o resultado. Você pode girar o dado acima.</Muted>
-          <NumberInput value={amount} onChange={setAmount} placeholder="Valor (dano ou cura)" />
-          <Button title="💥 Causar dano no monstro" disabled={!amount} onPress={() => resolve({ type: 'dano', amount: toInt(amount) })} />
-          <View style={styles.wrap}>
-            {alive.map((c) => (
+          {pending.dice !== undefined && <Text style={text.accentStrong}>🎲 Dado do jogador: {pending.dice}</Text>}
+          {pendingAbility && <DamageStat damage={pendingAbility.baseDamage} />}
+          <StatusChance ability={pendingAbility} target={monster.name} />
+          {healing ? (
+            <View style={styles.actions}>
+              <Text style={text.strong}>💚 Quem deve ser curado?</Text>
+              <View style={styles.wrap}>
+                {alive.map((c) => (
+                  <Chip key={c.id} label={`${c.name} ❤️${c.hp}/${c.maxHp}`} active={healIds.includes(c.id)} onPress={() => toggleHeal(c.id)} />
+                ))}
+                <Chip
+                  label={`👹 ${monster.name} ❤️${battle.monsterHp}/${battle.monsterMaxHp}`}
+                  active={healIds.includes(MONSTER_TURN)}
+                  onPress={() => toggleHeal(MONSTER_TURN)}
+                />
+              </View>
+              <Muted>Quanto curar (cada alvo escolhido recebe este valor)</Muted>
+              <NumberInput value={healAmount} onChange={setHealAmount} placeholder="Cura" />
               <Button
-                key={c.id}
-                small
-                variant="secondary"
-                disabled={!amount}
-                title={`💚 Curar ${c.name}`}
-                onPress={() => resolve({ type: 'cura', amount: toInt(amount), targetId: c.id })}
+                title={`💚 Curar ${healIds.length || ''} alvo(s)`}
+                disabled={healIds.length === 0 || !toInt(healAmount)}
+                onPress={() => resolve({ type: 'cura', amount: toInt(healAmount), targetIds: healIds })}
               />
-            ))}
-          </View>
+              <Button variant="ghost" title="Voltar para o dano" onPress={() => setHealing(false)} />
+            </View>
+          ) : (
+            <>
+              <Muted>Digite o dano gerado pelo ataque.</Muted>
+              <NumberInput value={amount} onChange={setAmount} placeholder="Dano" />
+              <Button title="💥 Causar dano no monstro" disabled={!amount} onPress={() => resolve({ type: 'dano', amount: toInt(amount) })} />
+              <Button variant="secondary" title="💚 Curar" onPress={() => setHealing(true)} />
+            </>
+          )}
           <Button variant="ghost" title="Sem efeito" onPress={() => resolve({ type: 'nada' })} />
         </Card>
       ) : turn === MONSTER_TURN ? (
@@ -276,11 +322,7 @@ function MasterPanel({ codex, battle, monster, characters, run }: PanelProps & {
               <Chip key={a.id} label={`${a.name}${a.status ? ` ${STATUS_INFO[a.status].emoji}` : ''}`} active={abilityId === a.id} onPress={() => setAbilityId(a.id)} />
             ))}
           </View>
-          {monsterAbility && (
-            <DamageStat damage={monsterAbility.baseDamage}>
-              {monsterAbility.status ? ` · ${monsterAbility.statusChance}% de ${STATUS_INFO[monsterAbility.status].label.toLowerCase()}` : ''}
-            </DamageStat>
-          )}
+          {monsterAbility && <DamageStat damage={monsterAbility.baseDamage} />}
           <Muted>Alvo</Muted>
           <View style={styles.wrap}>
             <Chip label="Nenhum" active={!targetId} onPress={() => setTargetId(undefined)} />
@@ -288,12 +330,28 @@ function MasterPanel({ codex, battle, monster, characters, run }: PanelProps & {
               <Chip key={c.id} label={`${c.name} ❤️${c.hp}`} active={targetId === c.id} onPress={() => setTargetId(c.id)} />
             ))}
           </View>
-          <NumberInput value={amount} onChange={setAmount} placeholder="Dano" />
+          {targetId && (
+            <>
+              <StatusChance ability={monsterAbility} target={alive.find((c) => c.id === targetId)?.name ?? 'o alvo'} />
+              <View style={styles.inline}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Muted>🎲 Valor do dado</Muted>
+                  <NumberInput value={dice} onChange={setDice} placeholder="Ex.: 15" />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Muted>💥 Dano gerado</Muted>
+                  <NumberInput value={amount} onChange={setAmount} placeholder="Dano" />
+                </View>
+              </View>
+            </>
+          )}
           <Button
-            title="Executar turno do monstro"
+            title={targetId ? '💥 Aplicar dano' : 'Executar turno do monstro'}
+            disabled={!!targetId && (!toInt(dice) || !amount)}
             onPress={() => {
-              run((d) => monsterAction(d, codex.id, battle.id, { abilityId, targetId, damage: toInt(amount) }));
+              run((d) => monsterAction(d, codex.id, battle.id, { abilityId, targetId, dice: toInt(dice), damage: toInt(amount) }));
               setAmount('');
+              setDice('');
               setTargetId(undefined);
             }}
           />
@@ -345,11 +403,7 @@ function MasterPanel({ codex, battle, monster, characters, run }: PanelProps & {
 
       <Card>
         <Text style={text.strong}>🗺️ Cenário</Text>
-        <View style={styles.wrap}>
-          {TERRAINS.map((t) => (
-            <Chip key={t.key} label={t.label} active={battle.terrain === t.key} onPress={() => run((d) => setTerrain(d, codex.id, battle.id, t.key))} />
-          ))}
-        </View>
+        <TerrainPicker value={battle.terrain} onChange={(t) => run((d) => setTerrain(d, codex.id, battle.id, t))} />
       </Card>
 
       <Button variant="danger" title="Encerrar batalha sem vitória" onPress={confirmEnd} />
@@ -360,11 +414,10 @@ function MasterPanel({ codex, battle, monster, characters, run }: PanelProps & {
 function VictoryPanel({
   codex,
   battle,
-  monster,
   characters,
   isMaster,
   run,
-}: PanelProps & { monster: Monster; isMaster: boolean }) {
+}: PanelProps & { isMaster: boolean }) {
   const [min, setMin] = useState('10');
   const [max, setMax] = useState('50');
 
@@ -379,13 +432,6 @@ function VictoryPanel({
             </Text>
           </IconStat>
         ))}
-        {isMaster && monster.loot.length > 0 && (
-          <Button
-            variant="secondary"
-            title="🎁 Entregar espólio"
-            onPress={() => router.push({ pathname: '/monstro/editar', params: { codexId: codex.id, monsterId: monster.id } })}
-          />
-        )}
       </Card>
     );
   }
@@ -425,6 +471,14 @@ const styles = StyleSheet.create({
   turnCard: { borderColor: colors.primary, borderWidth: 2 },
   actions: { gap: spacing.sm },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  chance: {
+    gap: 2,
+    borderWidth: 1,
+    borderColor: colors.goldDim,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    backgroundColor: colors.surfaceRaised,
+  },
   inline: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
   chip: {
     borderWidth: 1,

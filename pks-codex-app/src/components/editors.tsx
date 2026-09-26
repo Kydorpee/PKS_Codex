@@ -101,7 +101,7 @@ export function AbilityFields<T extends Ability>({ value, onChange }: { value: T
               onPress={() => set({ status, statusChance: status ? value.statusChance || 25 : undefined })}
               style={[styles.chip, styles.chipSmall, active && styles.chipActive]}
             >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+              <Text style={[styles.chipText, status && { color: STATUS_INFO[status].color }, active && styles.chipTextActive]}>
                 {status ? `${STATUS_INFO[status].emoji} ${STATUS_INFO[status].label}` : 'Nenhum'}
               </Text>
             </Pressable>
@@ -110,7 +110,7 @@ export function AbilityFields<T extends Ability>({ value, onChange }: { value: T
       </View>
       {value.status && (
         <View style={{ gap: 2 }}>
-          <Text style={styles.miniLabel}>
+          <Text style={[styles.miniLabel, { color: STATUS_INFO[value.status].color }]}>
             Chance de {STATUS_INFO[value.status].label.toLowerCase()} (%) — {STATUS_INFO[value.status].effect}
           </Text>
           <Input

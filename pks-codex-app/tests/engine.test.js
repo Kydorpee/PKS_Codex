@@ -81,10 +81,10 @@ function playToVictory(data, battleIndex = 0) {
     const current = E.currentTurn(battle());
     if (current === 'monstro') {
       const alive = ['a', 'b'].filter((id) => hp(id) > 0);
-      data = ok(E.monsterAction(data, 'cx', battle().id, { abilityId: 'bite', targetId: alive[turn % alive.length], damage: 2 }));
+      data = ok(E.monsterAction(data, 'cx', battle().id, { abilityId: 'bite', targetId: alive[turn % alive.length], dice: 12, damage: 2 }));
     } else {
-      const ability = E.playerAction(data, 'cx', battle().id, current, { kind: 'habilidade', abilityId: 'fb' });
-      data = 'error' in ability ? ok(E.playerAction(data, 'cx', battle().id, current, { kind: 'fisico' })) : ability.data;
+      const ability = E.playerAction(data, 'cx', battle().id, current, { kind: 'habilidade', abilityId: 'fb', dice: 10 });
+      data = 'error' in ability ? ok(E.playerAction(data, 'cx', battle().id, current, { kind: 'fisico', dice: 10 })) : ability.data;
       data = ok(E.resolveAction(data, 'cx', battle().id, { type: 'dano', amount: current === 'a' ? 9 : 3 }));
     }
   }
@@ -106,7 +106,7 @@ test('jogador não pode agir fora do seu turno', () => {
   const data = ok(E.startBattle(setup(), 'cx', 'aranha', ['a', 'b'], 'planicie'));
   const battle = data.codexes[0].battles[0];
   const notTurn = ['a', 'b'].find((id) => id !== E.currentTurn(battle));
-  assert.ok('error' in E.playerAction(data, 'cx', battle.id, notTurn, { kind: 'fisico' }));
+  assert.ok('error' in E.playerAction(data, 'cx', battle.id, notTurn, { kind: 'fisico', dice: 10 }));
 });
 
 test('habilidade mágica gasta mana e é bloqueada sem mana suficiente', () => {
@@ -115,8 +115,36 @@ test('habilidade mágica gasta mana e é bloqueada sem mana suficiente', () => {
   data = ok(E.startBattle(data, 'cx', 'aranha', ['a'], 'planicie'));
   const battle = () => data.codexes[0].battles[0];
   while (E.currentTurn(battle()) !== 'a') data = ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }));
-  const result = E.playerAction(data, 'cx', battle().id, 'a', { kind: 'habilidade', abilityId: 'fb' });
+  const result = E.playerAction(data, 'cx', battle().id, 'a', { kind: 'habilidade', abilityId: 'fb', dice: 10 });
   assert.equal(result.error, 'Mana insuficiente.');
+});
+
+test('ataque exige o valor do dado e o status aplicado gera o aviso', () => {
+  let data = ok(E.startBattle(setup(), 'cx', 'aranha', ['a'], 'planicie'));
+  const battle = () => data.codexes[0].battles[0];
+  while (E.currentTurn(battle()) !== 'a') data = ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }));
+  assert.equal(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'fisico', dice: 0 }).error, 'Digite o valor do dado.');
+  data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'habilidade', abilityId: 'fb', dice: 17 }));
+  assert.equal(battle().pending.dice, 17);
+  data = ok(E.resolveAction(data, 'cx', battle().id, { type: 'dano', amount: 5 }));
+  assert.equal(battle().lastStatus.target, 'Aranha');
+  assert.equal(battle().lastStatus.type, 'veneno');
+  assert.equal(battle().lastStatus.chance, 100);
+  assert.ok('error' in E.monsterAction(data, 'cx', battle().id, { targetId: 'a', damage: 3 }), 'monstro também exige o dado');
+});
+
+test('cura escolhe vários alvos, inclusive o monstro', () => {
+  let data = ok(E.startBattle(setup(), 'cx', 'aranha', ['a', 'b'], 'planicie'));
+  const battle = () => data.codexes[0].battles[0];
+  while (E.currentTurn(battle()) === 'monstro') data = ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }));
+  const actor = E.currentTurn(battle());
+  data.characters.forEach((c) => (c.hp = 5));
+  data.codexes[0].battles[0].monsterHp = 20;
+  data = ok(E.playerAction(data, 'cx', battle().id, actor, { kind: 'fisico', dice: 8 }));
+  assert.ok('error' in E.resolveAction(data, 'cx', battle().id, { type: 'cura', amount: 4, targetIds: [] }), 'exige alvo');
+  data = ok(E.resolveAction(data, 'cx', battle().id, { type: 'cura', amount: 4, targetIds: ['a', 'b', 'monstro'] }));
+  assert.deepEqual(data.characters.map((c) => c.hp), [9, 9]);
+  assert.equal(battle().monsterHp, 24);
 });
 
 test('batalha completa: vitória, status sorteados e monstro derrotado', () => {
@@ -210,7 +238,7 @@ test('fuga com d20 e encerramento sem vitória', () => {
   for (let i = 0; i < 40 && !battle().participants[0].fled; i++) {
     data =
       E.currentTurn(battle()) === 'monstro'
-        ? ok(E.monsterAction(data, 'cx', battle().id, { targetId: 'a', damage: 0 }))
+        ? ok(E.monsterAction(data, 'cx', battle().id, { targetId: 'a', dice: 5, damage: 0 }))
         : ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'fugir' }));
   }
   assert.equal(battle().participants[0].fled, true);
@@ -238,4 +266,50 @@ test('demonstração não passa do limite de 5 personagens', () => {
   const { loadDemo } = require('../.test-build/demo');
   const full = { characters: [1, 2, 3].map((i) => character(`p${i}`, `P${i}`)), codexes: [] };
   assert.ok('error' in loadDemo(full));
+});
+
+test('trocar de classe troca as habilidades da classe e mantém as gerais', () => {
+  const codex = {
+    ...setup().codexes[0],
+    classes: [
+      { id: 'guerreiro', name: 'Guerreiro', emoji: '⚔️', description: '', offeredTo: [] },
+      { id: 'mago', name: 'Mago', emoji: '🔮', description: '', offeredTo: [] },
+    ],
+    startingClassId: 'mago',
+    abilities: [
+      { ...fireball, id: 'golpe', classId: 'guerreiro', offeredTo: [] },
+      { ...fireball, id: 'raio', classId: 'mago', offeredTo: [] },
+      { ...fireball, id: 'geral', offeredTo: [] },
+    ],
+  };
+  assert.equal(R.startingClassOf(codex), 'mago');
+  let c = { ...character('a', 'Aria'), abilities: [{ ...fireball, id: 'geral' }] };
+  c = R.applyClass(c, codex, 'guerreiro');
+  assert.deepEqual(c.abilities.map((a) => a.id).sort(), ['geral', 'golpe']);
+  assert.equal(c.abilities.find((a) => a.id === 'golpe').classId, undefined, 'cópia na ficha sem dados do Codex');
+  c = R.applyClass(c, codex, 'mago');
+  assert.equal(c.classId, 'mago');
+  assert.deepEqual(c.abilities.map((a) => a.id).sort(), ['geral', 'raio']);
+  c = R.applyClass(c, codex, undefined);
+  assert.deepEqual(c.abilities.map((a) => a.id), ['geral']);
+});
+
+test('espólios: vivos pegam em turnos e o que sobra é apagado', () => {
+  const loot = [{ id: 'p', name: 'Poção', quantity: 2, description: '' }, { id: 'e', name: 'Espada', quantity: 1, description: '' }];
+  let data = ok(E.startBattle(setup([{ ...monster('aranha', 5, []), loot }]), 'cx', 'aranha', ['a', 'b'], 'mar'));
+  const battle = () => data.codexes[0].battles[0];
+  data.characters[1].hp = 0; // Bram morreu: não tem vez
+  data.codexes[0].battles[0].participants[1].fled = false;
+  while (E.currentTurn(battle()) !== 'a') data = ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }));
+  data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'fisico', dice: 20 }));
+  data = ok(E.resolveAction(data, 'cx', battle().id, { type: 'dano', amount: 5 }));
+  assert.equal(battle().status, 'vitoria');
+  assert.deepEqual(battle().loot.order, ['a']);
+  assert.ok('error' in E.takeLoot(data, 'cx', battle().id, 'b', 'p'), 'morto não pega');
+  data = ok(E.takeLoot(data, 'cx', battle().id, 'a', 'p'));
+  assert.equal(data.characters[0].inventory.find((i) => i.name === 'Poção').quantity, 1);
+  assert.equal(battle().loot.items.find((i) => i.id === 'p').quantity, 1);
+  data = ok(E.passLoot(data, 'cx', battle().id, 'a'));
+  assert.equal(battle().loot.done, true);
+  assert.deepEqual(battle().loot.items, [], 'sobras apagadas');
 });

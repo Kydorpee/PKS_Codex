@@ -10,8 +10,8 @@ export function StatusBadges({ statuses }: { statuses: ActiveStatus[] }) {
   return (
     <View style={styles.badges}>
       {statuses.map((s) => (
-        <View key={s.type} style={styles.badge}>
-          <Text style={styles.badgeText}>
+        <View key={s.type} style={[styles.badge, { borderColor: STATUS_INFO[s.type].color }]}>
+          <Text style={[styles.badgeText, { color: STATUS_INFO[s.type].color }]}>
             {STATUS_INFO[s.type].emoji} {STATUS_INFO[s.type].label} · {s.roundsLeft}t
           </Text>
         </View>

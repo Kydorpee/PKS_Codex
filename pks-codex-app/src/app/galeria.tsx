@@ -154,9 +154,9 @@ export default function Gallery() {
       <Card>
         <StatusBadges statuses={STATUS_TYPES.map((type) => ({ type, roundsLeft: STATUS_INFO[type].rounds }))} />
         {STATUS_TYPES.map((type) => (
-          <Muted key={type}>
+          <Text key={type} style={{ color: STATUS_INFO[type].color }}>
             {STATUS_INFO[type].emoji} {STATUS_INFO[type].label}: {STATUS_INFO[type].effect}
-          </Muted>
+          </Text>
         ))}
       </Card>
 

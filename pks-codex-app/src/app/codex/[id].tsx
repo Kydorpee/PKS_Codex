@@ -4,10 +4,13 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AbilityCard } from '@/components/ability-card';
 import { BattleView } from '@/components/battle-view';
 import { CharacterBars } from '@/components/character-stats';
+import { LevelUpBlock } from '@/components/level-up-block';
+import { openLoots } from '@/components/loot-panel';
 import { CoinIcon, CostIcon, GoldAmount, IconStat, MonsterStats, StarIcon } from '@/components/monster-stats';
 import { Avatar, Button, Card, Muted, Screen, SectionHeader, TabBar, text } from '@/components/ui';
-import { currentTurn } from '@/lib/engine';
+import { currentLooter, currentTurn } from '@/lib/engine';
 import { SHOP_PRESETS } from '@/lib/presets';
+import { startingClassOf } from '@/lib/rules';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
 import { MONSTER_TURN, type Battle } from '@/lib/types';
@@ -17,10 +20,10 @@ const needsMaster = (b: Battle) => (b.status === 'vitoria' && !b.xpAwarded) || (
 
 export default function CodexDashboard() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { codexes, characters, updateCharacter, deleteCodex } = useStore();
+  const { codexes, characters, updateCharacter, updateCodex, removeFromCodex, deleteCodex, setStartingClass } = useStore();
   const codex = codexes.find((c) => c.id === id);
   // Aba escolhida; sem escolha, abre nas batalhas quando houver alguma.
-  const [chosenTab, setChosenTab] = useState<'codex' | 'batalhas'>();
+  const [chosenTab, setChosenTab] = useState<'codex' | 'habilidades' | 'batalhas'>();
   const [selectedBattle, setSelectedBattle] = useState<string>();
   // Batalha nova (criada agora) passa a ser a selecionada.
   const [knownBattles, setKnownBattles] = useState(() => codex?.battles.map((b) => b.id) ?? []);
@@ -44,8 +47,46 @@ export default function CodexDashboard() {
   }
 
   const players = characters.filter((c) => c.codexId === codex.id);
+  const classLabel = (classId?: string) => {
+    const k = codex.classes.find((x) => x.id === classId);
+    return k ? `${k.emoji} ${k.name}` : 'nenhuma';
+  };
 
   const pendingLevelUps = codex.levelUps.filter((e) => !e.resolved);
+  const levelRows = codex.levelUps
+    .filter((e) => !e.hiddenForMaster)
+    .reverse()
+    .map((e) => {
+      const c = characters.find((x) => x.id === e.characterId);
+      return {
+        id: e.id,
+        title: `🆙 ${c?.name ?? '?'} · nível ${e.level}`,
+        pending: !e.resolved,
+        lines: e.resolved
+          ? e.rewards.map((r) => `• ${r}`)
+          : [c ? 'Toque para liberar habilidades ou aumentar status.' : 'O personagem saiu do Codex. Toque para descartar.'],
+        onPress: e.resolved ? undefined : () => router.push({ pathname: '/codex/nivel', params: { codexId: codex.id, eventId: e.id } }),
+      };
+    });
+  // Concluídos só somem do bloco (o jogador ainda vê as recompensas); pendentes são descartados.
+  const clearLevelUps = () =>
+    updateCodex(codex.id, (c) => ({
+      ...c,
+      levelUps: c.levelUps.filter((e) => e.resolved).map((e) => ({ ...e, hiddenForMaster: true })),
+    }));
+
+  const confirmRemove = (characterId: string, name: string) =>
+    Alert.alert('Remover do Codex?', `${name} vai sair de "${codex.name}". A ficha do jogador continua existindo.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Remover',
+        style: 'destructive',
+        onPress: () => {
+          const error = removeFromCodex(codex.id, characterId);
+          if (error) Alert.alert('Não foi possível remover', error);
+        },
+      },
+    ]);
   const battles = [...codex.battles].reverse().filter((b) => b.status === 'ativa' || (b.status === 'vitoria' && !b.xpAwarded));
   const tab = battles.length > 0 ? (chosenTab ?? 'batalhas') : (chosenTab ?? 'codex');
   const shown = battles.find((b) => b.id === selectedBattle) ?? battles[0];
@@ -83,11 +124,84 @@ export default function CodexDashboard() {
       value={tab}
       onChange={setChosenTab}
       tabs={[
-        { key: 'codex', label: '📜 Codex' },
+        { key: 'codex', label: '📜 Codex', badge: pendingLevelUps.length ? `🆙 ${pendingLevelUps.length}` : undefined },
+        { key: 'habilidades', label: '✨ Habilidades' },
         { key: 'batalhas', label: `⚔️ Batalhas${battles.length ? ` (${battles.length})` : ''}`, badge: waiting ? 'Sua vez!' : undefined },
       ]}
     />
   );
+
+  if (tab === 'habilidades') {
+    const general = codex.abilities.filter((a) => !a.classId);
+    const startingId = startingClassOf(codex);
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: codex.name }} />
+        {tabs}
+
+        {/* Classes */}
+        <SectionHeader
+          title="Classes"
+          action={
+            <Button small variant="secondary" title="+ Nova" onPress={() => router.push({ pathname: '/codex/classe', params: { codexId: codex.id } })} />
+          }
+        />
+        <Muted>
+          Cada personagem entra no Codex com a classe inicial. Libere outras classes para quem pode trocar: o jogador escolhe se troca.
+        </Muted>
+        {codex.classes.length === 0 && <Muted>Nenhuma classe ainda. Crie Guerreiro, Mago, Ladino...</Muted>}
+        {codex.classes.map((k) => {
+          const members = players.filter((p) => p.classId === k.id);
+          const count = codex.abilities.filter((a) => a.classId === k.id).length;
+          const starting = k.id === startingId;
+          return (
+            <Card key={k.id} style={starting && styles.highlight} onPress={() => router.push({ pathname: '/codex/classe', params: { codexId: codex.id, classId: k.id } })}>
+              <View style={styles.row}>
+                <Text style={{ fontSize: 28 }}>{k.emoji}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={text.strong}>
+                    {k.name}
+                    {starting ? ' · inicial' : ''}
+                  </Text>
+                  <Muted>
+                    {count} habilidade(s) · {members.length} personagem(ns)
+                    {k.offeredTo.length ? ` · ${k.offeredTo.length} aguardando escolha` : ''}
+                  </Muted>
+                  {members.length > 0 && <Muted>{members.map((m) => m.name).join(', ')}</Muted>}
+                </View>
+              </View>
+              {!starting && (
+                <Button small variant="secondary" title="Usar como classe inicial" onPress={() => setStartingClass(codex.id, k.id)} />
+              )}
+            </Card>
+          );
+        })}
+
+        {/* Habilidades gerais */}
+        <SectionHeader
+          title="Habilidades gerais"
+          action={
+            <Button small variant="secondary" title="+ Nova" onPress={() => router.push({ pathname: '/codex/habilidade', params: { codexId: codex.id } })} />
+          }
+        />
+        <Muted>Sem classe: você escolhe quais personagens podem pegá-las.</Muted>
+        {general.map((a) => {
+          const owners = players.filter((p) => p.abilities.some((x) => x.id === a.id)).length;
+          return (
+            <AbilityCard
+              key={a.id}
+              ability={a}
+              onPress={() => router.push({ pathname: '/codex/habilidade', params: { codexId: codex.id, abilityId: a.id } })}
+            >
+              <Muted>
+                {owners} possui · {a.offeredTo.length} aguardando resposta
+              </Muted>
+            </AbilityCard>
+          );
+        })}
+      </Screen>
+    );
+  }
 
   if (tab === 'batalhas') {
     return (
@@ -169,22 +283,12 @@ export default function CodexDashboard() {
       })}
 
       {/* Eventos de nível */}
-      {pendingLevelUps.length > 0 && (
-        <>
-          <SectionHeader title="Eventos de nível" />
-          {pendingLevelUps.map((e) => {
-            const c = characters.find((x) => x.id === e.characterId);
-            return (
-              <Card key={e.id} style={styles.highlight} onPress={() => router.push({ pathname: '/codex/nivel', params: { codexId: codex.id, eventId: e.id } })}>
-                <Text style={text.strong}>
-                  🆙 {c?.name ?? '?'} subiu para o nível {e.level}
-                </Text>
-                <Muted>{c ? 'Toque para liberar habilidades ou aumentar status.' : 'O personagem saiu do Codex. Toque para descartar.'}</Muted>
-              </Card>
-            );
-          })}
-        </>
-      )}
+      <LevelUpBlock
+        rows={levelRows}
+        onClear={clearLevelUps}
+        emptyText="Nenhum evento de nível."
+        pendingWarning="Os eventos pendentes serão descartados sem recompensas. O nível dos personagens não muda."
+      />
 
       {/* Jogadores */}
       <SectionHeader
@@ -202,6 +306,7 @@ export default function CodexDashboard() {
             <Avatar uri={p.photoUri} name={p.name} size={44} />
             <View style={{ flex: 1 }}>
               <Text style={text.strong}>{p.name}</Text>
+              <Muted>Classe: {classLabel(p.classId)}</Muted>
               <View style={styles.playerStats}>
                 <IconStat icon={<StarIcon />}>Nível {p.level}</IconStat>
                 <IconStat icon={<CostIcon kind="magica" />}>{p.abilities.length} habilidade(s)</IconStat>
@@ -216,31 +321,9 @@ export default function CodexDashboard() {
             <Button small variant="secondary" icon={<CoinIcon />} title="+10" style={{ flex: 1 }} onPress={() => changeGold(p.id, 10)} />
             <Button small variant="secondary" icon={<CoinIcon />} title="+50" style={{ flex: 1 }} onPress={() => changeGold(p.id, 50)} />
           </View>
+          <Button small variant="danger" title="🚪 Remover do Codex" onPress={() => confirmRemove(p.id, p.name)} />
         </Card>
       ))}
-
-      {/* Habilidades */}
-      <SectionHeader
-        title="Habilidades"
-        action={
-          <Button small variant="secondary" title="+ Nova" onPress={() => router.push({ pathname: '/codex/habilidade', params: { codexId: codex.id } })} />
-        }
-      />
-      <Muted>Crie habilidades e escolha quais personagens podem pegá-las.</Muted>
-      {codex.abilities.map((a) => {
-        const owners = players.filter((p) => p.abilities.some((x) => x.id === a.id)).length;
-        return (
-          <AbilityCard
-            key={a.id}
-            ability={a}
-            onPress={() => router.push({ pathname: '/codex/habilidade', params: { codexId: codex.id, abilityId: a.id } })}
-          >
-            <Muted>
-              {owners} possui · {a.offeredTo.length} aguardando resposta
-            </Muted>
-          </AbilityCard>
-        );
-      })}
 
       {/* Monstros */}
       <SectionHeader
@@ -287,6 +370,23 @@ export default function CodexDashboard() {
           <Button key={p.key} small variant="secondary" title={`${p.emoji} ${p.name}`} onPress={() => addShopPreset(p.key)} style={{ flexGrow: 1 }} />
         ))}
       </View>
+      {openLoots(codex).map((b) => {
+        const m = codex.monsters.find((x) => x.id === b.monsterId);
+        const looter = characters.find((c) => c.id === currentLooter(b));
+        return (
+          <Card key={b.id} onPress={() => router.push({ pathname: '/espolios', params: { codexId: codex.id, battleId: b.id } })}>
+            <View style={styles.row}>
+              <Text style={{ fontSize: 28 }}>💰</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={text.strong}>Espólios · {m?.name ?? 'monstro'}</Text>
+                <Muted>
+                  Gerado pelo sistema · vez de {looter?.name ?? '?'} · {b.loot!.items.reduce((n, i) => n + i.quantity, 0)} item(ns)
+                </Muted>
+              </View>
+            </View>
+          </Card>
+        );
+      })}
       {codex.shops.map((s) => (
         <Card key={s.id} onPress={() => router.push({ pathname: '/codex/loja', params: { codexId: codex.id, shopId: s.id } })}>
           <View style={styles.row}>

@@ -9,15 +9,16 @@ import { spacing } from '@/lib/theme';
 import type { CodexAbility } from '@/lib/types';
 
 export default function EditCodexAbility() {
-  const { codexId, abilityId } = useLocalSearchParams<{ codexId: string; abilityId?: string }>();
+  const { codexId, abilityId, classId } = useLocalSearchParams<{ codexId: string; abilityId?: string; classId?: string }>();
   const { codexes, characters, saveAbility, deleteAbility, revokeAbility } = useStore();
   const codex = codexes.find((c) => c.id === codexId);
   const existing = codex?.abilities.find((a) => a.id === abilityId);
 
-  const [draft, setDraft] = useState<CodexAbility>(() => existing ?? { ...emptyAbility(), offeredTo: [] });
+  const [draft, setDraft] = useState<CodexAbility>(() => existing ?? { ...emptyAbility(), offeredTo: [], classId });
 
   if (!codex) return null;
   const players = characters.filter((c) => c.codexId === codex.id);
+  const klass = codex.classes.find((k) => k.id === draft.classId);
 
   const toggleOffer = (characterId: string) =>
     setDraft((d) => ({
@@ -32,7 +33,9 @@ export default function EditCodexAbility() {
     }
     const owns = (characterId: string) =>
       characters.find((c) => c.id === characterId)?.abilities.some((a) => a.id === draft.id) ?? true;
-    saveAbility(codex.id, { ...draft, name: draft.name.trim(), offeredTo: draft.offeredTo.filter((id) => !owns(id)) });
+    // Habilidade de classe não tem oferta: vai para todos da classe.
+    const offeredTo = draft.classId ? [] : draft.offeredTo.filter((id) => !owns(id));
+    saveAbility(codex.id, { ...draft, name: draft.name.trim(), offeredTo });
     router.back();
   };
 
@@ -63,7 +66,7 @@ export default function EditCodexAbility() {
                 small
                 variant="secondary"
                 title={seed[0]}
-                onPress={() => setDraft((d) => ({ ...abilityFromSeed(seed), id: d.id, offeredTo: d.offeredTo }))}
+                onPress={() => setDraft((d) => ({ ...abilityFromSeed(seed), id: d.id, offeredTo: d.offeredTo, classId: d.classId }))}
               />
             ))}
           </ScrollView>
@@ -72,9 +75,35 @@ export default function EditCodexAbility() {
 
       <AbilityFields value={draft} onChange={setDraft} />
 
-      <SectionHeader title="Quem pode pegar" />
-      {players.length === 0 && <Muted>Nenhum jogador no Codex ainda.</Muted>}
-      {players.map((p) => {
+      <SectionHeader title="Classe" />
+      <View style={styles.classes}>
+        <Button
+          small
+          variant={draft.classId ? 'secondary' : 'primary'}
+          title="Geral (sem classe)"
+          onPress={() => setDraft((d) => ({ ...d, classId: undefined }))}
+        />
+        {codex.classes.map((k) => (
+          <Button
+            key={k.id}
+            small
+            variant={draft.classId === k.id ? 'primary' : 'secondary'}
+            title={`${k.emoji} ${k.name}`}
+            onPress={() => setDraft((d) => ({ ...d, classId: k.id, offeredTo: [] }))}
+          />
+        ))}
+      </View>
+
+      {klass ? (
+        <Muted>
+          Todo personagem da classe {klass.emoji} {klass.name} recebe esta habilidade ({players.filter((p) => p.classId === klass.id).length}{' '}
+          agora).
+        </Muted>
+      ) : (
+        <SectionHeader title="Quem pode pegar" />
+      )}
+      {!klass && players.length === 0 && <Muted>Nenhum jogador no Codex ainda.</Muted>}
+      {!klass && players.map((p) => {
         const owns = p.abilities.some((a) => a.id === draft.id);
         if (owns) {
           return (
@@ -108,4 +137,5 @@ export default function EditCodexAbility() {
 const styles = StyleSheet.create({
   suggestions: { gap: spacing.sm },
   ownerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  classes: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
 });

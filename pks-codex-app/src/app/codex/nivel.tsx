@@ -96,7 +96,7 @@ export default function LevelUpEventScreen() {
     );
   }
 
-  const offerable = codex.abilities.filter((a) => !character.abilities.some((x) => x.id === a.id) && !a.offeredTo.includes(character.id));
+  const offerable = codex.abilities.filter((a) => !a.classId && !character.abilities.some((x) => x.id === a.id) && !a.offeredTo.includes(character.id));
 
   const save = () => {
     const error = act((d) => resolveLevelUp(d, codex.id, event.id, reward));

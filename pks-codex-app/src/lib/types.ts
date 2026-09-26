@@ -28,6 +28,18 @@ export type Ability = {
 export type CodexAbility = Ability & {
   /** Personagens que ainda precisam aceitar ou recusar a oferta. */
   offeredTo: string[];
+  /** Classe dona da habilidade: quem tem a classe recebe a habilidade. Sem classe, é oferecida um a um. */
+  classId?: string;
+};
+
+/** Classe criada pelo Mestre (Guerreiro, Mago...), com as habilidades dela. */
+export type CodexClass = {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  /** Personagens para quem o Mestre liberou a troca para esta classe. */
+  offeredTo: string[];
 };
 
 export const costLabel = (a: Pick<Ability, 'kind' | 'cost'>) =>
@@ -63,6 +75,8 @@ export type Character = {
   gold: number;
   /** Codex (campanha) em que o personagem entrou. */
   codexId?: string;
+  /** Classe do personagem no Codex atual. */
+  classId?: string;
   /** Codex dos quais já recebeu o inventário inicial (não recebe de novo ao sair e voltar). */
   startingItemsFrom?: string[];
   createdAt: number;
@@ -77,6 +91,8 @@ export type Character = {
   maxStamina: number;
   attributes: Attribute[];
   statuses: ActiveStatus[];
+  /** Eventos de nível que o jogador já limpou do bloco da ficha. */
+  dismissedLevelUps?: string[];
 };
 
 export type MonsterSource = 'bestiario' | 'manual';
@@ -127,6 +143,17 @@ export type PendingAction = {
   kind: 'fisico' | 'habilidade' | 'item';
   label: string;
   abilityId?: string;
+  /** Valor do dado digitado pelo jogador ao atacar. */
+  dice?: number;
+};
+
+/** Último status aplicado pelo sistema na batalha; gera o aviso "Alvo (status)". */
+export type StatusHit = {
+  id: string;
+  target: string;
+  type: StatusType;
+  chance: number;
+  roll: number;
 };
 
 export type LogTone = 'info' | 'dano' | 'cura' | 'status' | 'dado';
@@ -135,6 +162,8 @@ export type LogEntry = {
   id: string;
   text: string;
   tone: LogTone;
+  /** Linha sobre um status: usa a cor dele no registro. */
+  status?: StatusType;
 };
 
 export type Terrain =
@@ -146,7 +175,21 @@ export type Terrain =
   | 'gelo-noite'
   | 'catacumbas'
   | 'floresta'
-  | 'floresta-noite';
+  | 'floresta-noite'
+  | 'mar'
+  | 'mar-noite';
+
+/**
+ * Espólios do monstro derrotado. Cada personagem vivo tem uma vez (na ordem da batalha)
+ * para pegar itens e passar a vez; depois da última vez, o que sobrou é apagado.
+ */
+export type Loot = {
+  items: Item[];
+  /** Personagens com direito a pegar, na ordem da batalha. */
+  order: string[];
+  turnIndex: number;
+  done: boolean;
+};
 
 /** Na ordem de turnos, o monstro é representado por este id. */
 export const MONSTER_TURN = 'monstro';
@@ -172,9 +215,12 @@ export type Battle = {
   turnIndex: number;
   round: number;
   pending?: PendingAction;
+  lastStatus?: StatusHit;
   lastRoll?: { sides: number; value: number; by: string };
   log: LogEntry[];
   xpAwarded?: Record<string, number>;
+  /** Local "Espólios": itens do monstro derrotado, pegos em turnos. */
+  loot?: Loot;
   createdAt: number;
 };
 
@@ -185,6 +231,8 @@ export type LevelUpEvent = {
   resolved: boolean;
   /** Resumo das recompensas definidas pelo Mestre. */
   rewards: string[];
+  /** O Mestre limpou este evento (já concluído) do bloco de eventos. */
+  hiddenForMaster?: boolean;
   createdAt: number;
 };
 
@@ -201,6 +249,9 @@ export type Codex = {
   monsters: Monster[];
   shops: Shop[];
   abilities: CodexAbility[];
+  classes: CodexClass[];
+  /** Classe atribuída a quem entra no Codex. */
+  startingClassId?: string;
   battles: Battle[];
   levelUps: LevelUpEvent[];
   /** Itens que todo personagem recebe ao entrar no Codex. */
