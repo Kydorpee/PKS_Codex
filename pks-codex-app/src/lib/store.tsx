@@ -18,11 +18,11 @@ import type { Data, Result } from './engine';
 import { firebase } from './firebase';
 import { newId } from './ids';
 import { toSharedPhoto } from './photos';
-import { normalizeCharacter, normalizeCodex } from './rules';
+import { addToInventory, normalizeCharacter, normalizeCodex } from './rules';
 import { CACHE_CHARACTERS_KEY, CACHE_UID_KEY, CHARACTERS_KEY, CODEXES_KEY, MIGRATED_KEY } from './storage-keys';
 import { diffData, replaceDoc, sameDoc, withOwner, type DocChange, type DocKind, type Doc } from './sync';
 import { refreshWidget } from '@/widget';
-import { MAX_CHARACTERS, type Ability, type Character, type Codex, type CodexAbility, type Item } from './types';
+import { MAX_CHARACTERS, type Ability, type Character, type Codex, type CodexAbility } from './types';
 
 type Store = Data & {
   /** Há dados para mostrar (do servidor ou da cópia guardada no aparelho). */
@@ -59,9 +59,10 @@ type Store = Data & {
   act: (rule: (data: Data) => Result) => string | null;
 };
 
-/** Remove um personagem das lojas e ofertas de habilidade de um Codex. */
+/** Remove um personagem das lojas, ofertas de habilidade e eventos de nível pendentes de um Codex. */
 const withoutCharacter = (codex: Codex, characterId: string): Codex => ({
   ...codex,
+  levelUps: codex.levelUps.filter((e) => e.resolved || e.characterId !== characterId),
   shops: codex.shops.map((s) => ({ ...s, visibleTo: s.visibleTo.filter((id) => id !== characterId) })),
   abilities: codex.abilities.map((a) => ({ ...a, offeredTo: a.offeredTo.filter((id) => id !== characterId) })),
 });
@@ -79,17 +80,6 @@ const mapCodex = (data: Data, id: string, change: (c: Codex) => Codex): Data => 
 });
 
 const StoreContext = createContext<Store | null>(null);
-
-/** Soma itens com o mesmo nome em vez de duplicar a entrada no inventário. */
-export function addToInventory(inventory: Item[], items: Item[]): Item[] {
-  const result = inventory.map((item) => ({ ...item }));
-  for (const item of items) {
-    const existing = result.find((i) => i.name.trim().toLowerCase() === item.name.trim().toLowerCase());
-    if (existing) existing.quantity += item.quantity;
-    else result.push({ ...item, id: newId() });
-  }
-  return result;
-}
 
 /** Uma regra do engine que falhou dentro da transação (os dados mudaram em outro celular). */
 class ActionError extends Error {}
@@ -490,8 +480,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             codex.ownerUid === me || codex.members.includes(me) ? codex : { ...codex, members: [...codex.members, me] };
           mutate((d) => {
             const known = d.codexes.find((c) => c.id === found.id);
+            const startingItems = (known ?? found).startingItems;
+            // O inventário inicial é entregue uma vez por Codex: sair e voltar não duplica.
+            const enter = (c: Character): Character => {
+              const received = c.startingItemsFrom ?? [];
+              if (received.includes(found.id)) return { ...c, codexId: found.id };
+              return {
+                ...c,
+                codexId: found.id,
+                inventory: addToInventory(c.inventory, startingItems),
+                startingItemsFrom: [...received, found.id],
+              };
+            };
             return {
-              characters: d.characters.map((c) => (c.id === characterId ? { ...c, codexId: found.id } : c)),
+              characters: d.characters.map((c) => (c.id === characterId ? enter(c) : c)),
               codexes: known ? d.codexes.map((c) => (c.id === found.id ? join(c) : c)) : [...d.codexes, join(found)],
             };
           });

@@ -63,6 +63,8 @@ export type Character = {
   gold: number;
   /** Codex (campanha) em que o personagem entrou. */
   codexId?: string;
+  /** Codex dos quais já recebeu o inventário inicial (não recebe de novo ao sair e voltar). */
+  startingItemsFrom?: string[];
   createdAt: number;
   level: number;
   /** XP acumulado dentro do nível atual. */
@@ -201,6 +203,10 @@ export type Codex = {
   abilities: CodexAbility[];
   battles: Battle[];
   levelUps: LevelUpEvent[];
+  /** Itens que todo personagem recebe ao entrar no Codex. */
+  startingItems: Item[];
+  /** Regra do Mestre: jogadores podem adicionar itens na própria bolsa, além de comprar. */
+  allowFreeInventory: boolean;
   createdAt: number;
 };
 

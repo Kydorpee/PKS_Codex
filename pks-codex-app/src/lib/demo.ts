@@ -76,6 +76,8 @@ export function loadDemo(data: Data): Result {
     battles: [],
     // Bram acabou de subir de nível e aguarda o evento do Mestre.
     levelUps: [{ id: newId(), characterId: bram.id, level: 2, resolved: false, rewards: [], createdAt: Date.now() }],
+    startingItems: [],
+    allowFreeInventory: false,
     createdAt: Date.now(),
   };
 

@@ -1,9 +1,27 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert } from 'react-native';
-import { Button, Field, Screen } from '@/components/ui';
+import { Alert, Text } from 'react-native';
+import { ItemListEditor } from '@/components/editors';
+import { Button, CheckRow, Field, Muted, Screen, SectionHeader } from '@/components/ui';
 import { newCodexCode, newId } from '@/lib/ids';
+import { itemSuggestions } from '@/lib/presets';
 import { useStore } from '@/lib/store';
+import type { Codex, Item } from '@/lib/types';
+
+type CodexFields = Pick<Codex, 'name' | 'description' | 'startingItems' | 'allowFreeInventory'>;
+
+const newCodex = (usedCodes: string[], fields: CodexFields): Codex => ({
+  id: newId(),
+  code: newCodexCode(usedCodes),
+  ...fields,
+  monsters: [],
+  shops: [],
+  abilities: [],
+  battles: [],
+  levelUps: [],
+  members: [],
+  createdAt: Date.now(),
+});
 
 export default function EditCodex() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -12,32 +30,26 @@ export default function EditCodex() {
 
   const [name, setName] = useState(existing?.name ?? '');
   const [description, setDescription] = useState(existing?.description ?? '');
+  const [startingItems, setStartingItems] = useState<Item[]>(existing?.startingItems ?? []);
+  const [allowFreeInventory, setAllowFreeInventory] = useState(existing?.allowFreeInventory ?? false);
 
   const save = () => {
     if (!name.trim()) {
       Alert.alert('Nome obrigatório', 'Dê um nome à campanha.');
       return;
     }
+    const items = startingItems
+      .filter((i) => i.name.trim() && i.quantity > 0)
+      .map((i) => ({ ...i, name: i.name.trim(), description: i.description.trim() }));
+    const fields: CodexFields = { name: name.trim(), description: description.trim(), startingItems: items, allowFreeInventory };
     if (existing) {
-      updateCodex(existing.id, (c) => ({ ...c, name: name.trim(), description: description.trim() }));
+      updateCodex(existing.id, (c) => ({ ...c, ...fields }));
       router.back();
       return;
     }
-    const codexId = newId();
-    saveCodex({
-      id: codexId,
-      code: newCodexCode(codexes.map((c) => c.code)),
-      name: name.trim(),
-      description: description.trim(),
-      monsters: [],
-      shops: [],
-      abilities: [],
-      battles: [],
-      levelUps: [],
-      members: [],
-      createdAt: Date.now(),
-    });
-    router.replace({ pathname: '/codex/[id]', params: { id: codexId } });
+    const codex = newCodex(codexes.map((c) => c.code), fields);
+    saveCodex(codex);
+    router.replace({ pathname: '/codex/[id]', params: { id: codex.id } });
   };
 
   return (
@@ -50,6 +62,25 @@ export default function EditCodex() {
         multiline
         value={description}
         onChangeText={setDescription}
+      />
+      <ItemListEditor
+        title="Inventário inicial"
+        value={startingItems}
+        onChange={setStartingItems}
+        suggestions={itemSuggestions(existing?.shops)}
+      />
+      <Muted>Todo personagem que entrar no Codex recebe estes itens na bolsa (uma vez por personagem).</Muted>
+      <SectionHeader title="Regras" />
+      <CheckRow
+        label="Inventário livre"
+        icon={<Text style={{ fontSize: 28 }}>🎒</Text>}
+        detail={
+          allowFreeInventory
+            ? 'Jogadores compram nas lojas e também podem adicionar e ajustar itens na própria bolsa.'
+            : 'Jogadores só recebem itens comprando nas lojas ou pelas mãos do Mestre.'
+        }
+        checked={allowFreeInventory}
+        onToggle={() => setAllowFreeInventory((v) => !v)}
       />
       <Button title={existing ? 'Salvar' : 'Criar Codex'} onPress={save} style={{ marginTop: 16 }} />
     </Screen>

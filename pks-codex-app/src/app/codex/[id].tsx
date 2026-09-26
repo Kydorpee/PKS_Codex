@@ -1,17 +1,38 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AbilityCard } from '@/components/ability-card';
+import { BattleView } from '@/components/battle-view';
 import { CharacterBars } from '@/components/character-stats';
 import { CoinIcon, CostIcon, GoldAmount, IconStat, MonsterStats, StarIcon } from '@/components/monster-stats';
-import { Avatar, Button, Card, Muted, Screen, SectionHeader, text } from '@/components/ui';
-import { SHOP_PRESETS, shopFromPreset } from '@/lib/presets';
+import { Avatar, Button, Card, Muted, Screen, SectionHeader, TabBar, text } from '@/components/ui';
+import { currentTurn } from '@/lib/engine';
+import { SHOP_PRESETS } from '@/lib/presets';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
+import { MONSTER_TURN, type Battle } from '@/lib/types';
+
+/** A batalha espera o Mestre: turno do monstro, ação de jogador para resolver ou XP da vitória. */
+const needsMaster = (b: Battle) => (b.status === 'vitoria' && !b.xpAwarded) || (b.status === 'ativa' && (!!b.pending || currentTurn(b) === MONSTER_TURN));
 
 export default function CodexDashboard() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { codexes, characters, updateCodex, updateCharacter, deleteCodex } = useStore();
+  const { codexes, characters, updateCharacter, deleteCodex } = useStore();
   const codex = codexes.find((c) => c.id === id);
+  // Aba escolhida; sem escolha, abre nas batalhas quando houver alguma.
+  const [chosenTab, setChosenTab] = useState<'codex' | 'batalhas'>();
+  const [selectedBattle, setSelectedBattle] = useState<string>();
+  // Batalha nova (criada agora) passa a ser a selecionada.
+  const [knownBattles, setKnownBattles] = useState(() => codex?.battles.map((b) => b.id) ?? []);
+  const battleIds = codex?.battles.map((b) => b.id) ?? [];
+  if (battleIds.length !== knownBattles.length || battleIds.some((b) => !knownBattles.includes(b))) {
+    const created = battleIds.find((b) => !knownBattles.includes(b));
+    setKnownBattles(battleIds);
+    if (created) {
+      setSelectedBattle(created);
+      setChosenTab('batalhas');
+    }
+  }
 
   if (!codex) {
     return (
@@ -26,6 +47,14 @@ export default function CodexDashboard() {
 
   const pendingLevelUps = codex.levelUps.filter((e) => !e.resolved);
   const battles = [...codex.battles].reverse().filter((b) => b.status === 'ativa' || (b.status === 'vitoria' && !b.xpAwarded));
+  const tab = battles.length > 0 ? (chosenTab ?? 'batalhas') : (chosenTab ?? 'codex');
+  const shown = battles.find((b) => b.id === selectedBattle) ?? battles[0];
+  const waiting = battles.filter(needsMaster).length;
+  const openBattle = (battleId: string) => {
+    setSelectedBattle(battleId);
+    setChosenTab('batalhas');
+  };
+  const newBattle = () => router.push({ pathname: '/batalha/nova', params: { codexId: codex.id } });
 
   const restore = (characterId: string) =>
     updateCharacter(characterId, (c) => ({ ...c, hp: c.maxHp, mana: c.maxMana, stamina: c.maxStamina, statuses: [] }));
@@ -33,13 +62,8 @@ export default function CodexDashboard() {
   const changeGold = (characterId: string, delta: number) =>
     updateCharacter(characterId, (c) => ({ ...c, gold: Math.max(0, c.gold + delta) }));
 
-  const addShopPreset = (key: string) => {
-    const preset = SHOP_PRESETS.find((p) => p.key === key);
-    if (!preset) return;
-    const shop = shopFromPreset(preset);
-    updateCodex(codex.id, (c) => ({ ...c, shops: [...c.shops, shop] }));
-    router.push({ pathname: '/codex/loja', params: { codexId: codex.id, shopId: shop.id } });
-  };
+  // O modelo só abre o editor: o local é criado ao tocar em "Salvar", sem duplicar ao voltar.
+  const addShopPreset = (key: string) => router.push({ pathname: '/codex/loja', params: { codexId: codex.id, preset: key } });
 
   const confirmDelete = () =>
     Alert.alert('Apagar Codex?', `"${codex.name}" e todo o seu conteúdo serão apagados. Os jogadores sairão da campanha.`, [
@@ -54,9 +78,61 @@ export default function CodexDashboard() {
       },
     ]);
 
+  const tabs = (
+    <TabBar
+      value={tab}
+      onChange={setChosenTab}
+      tabs={[
+        { key: 'codex', label: '📜 Codex' },
+        { key: 'batalhas', label: `⚔️ Batalhas${battles.length ? ` (${battles.length})` : ''}`, badge: waiting ? 'Sua vez!' : undefined },
+      ]}
+    />
+  );
+
+  if (tab === 'batalhas') {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: codex.name }} />
+        {tabs}
+        {battles.length > 1 && (
+          <View style={styles.inline}>
+            {battles.map((b) => {
+              const m = codex.monsters.find((x) => x.id === b.monsterId);
+              const active = b.id === shown?.id;
+              return (
+                <Pressable
+                  key={b.id}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                  onPress={() => setSelectedBattle(b.id)}
+                  style={[styles.battleChip, active && styles.battleChipActive]}
+                >
+                  <Text style={styles.battleChipText}>
+                    {needsMaster(b) ? '❗ ' : ''}
+                    {m?.emoji ?? '⚔️'} {m?.name ?? 'Monstro'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+        {shown ? (
+          <BattleView key={shown.id} codexId={codex.id} battleId={shown.id} />
+        ) : (
+          <Card>
+            <Text style={text.strong}>Nenhuma batalha em andamento</Text>
+            <Muted>Quando começar uma, ela aparece aqui para você acompanhar só o que acontece nela.</Muted>
+          </Card>
+        )}
+        <Button variant="secondary" title="⚔️ Nova batalha" onPress={newBattle} />
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <Stack.Screen options={{ title: codex.name }} />
+      {tabs}
 
       <Card style={styles.codeCard}>
         <Muted>Código para os jogadores entrarem</Muted>
@@ -70,14 +146,14 @@ export default function CodexDashboard() {
       <SectionHeader
         title="Batalhas"
         action={
-          <Button small title="⚔️ Nova batalha" onPress={() => router.push({ pathname: '/batalha/nova', params: { codexId: codex.id } })} />
+          <Button small title="⚔️ Nova batalha" onPress={newBattle} />
         }
       />
       {battles.length === 0 && <Muted>Nenhuma batalha em andamento.</Muted>}
       {battles.map((b) => {
         const m = codex.monsters.find((x) => x.id === b.monsterId);
         return (
-          <Card key={b.id} style={styles.highlight} onPress={() => router.push({ pathname: '/batalha/[id]', params: { id: b.id, codexId: codex.id } })}>
+          <Card key={b.id} style={styles.highlight} onPress={() => openBattle(b.id)}>
             <View style={styles.row}>
               <Avatar uri={m?.photoUri} emoji={m?.emoji} name={m?.name} size={44} />
               <View style={{ flex: 1 }}>
@@ -103,7 +179,7 @@ export default function CodexDashboard() {
                 <Text style={text.strong}>
                   🆙 {c?.name ?? '?'} subiu para o nível {e.level}
                 </Text>
-                <Muted>Toque para liberar habilidades ou aumentar status.</Muted>
+                <Muted>{c ? 'Toque para liberar habilidades ou aumentar status.' : 'O personagem saiu do Codex. Toque para descartar.'}</Muted>
               </Card>
             );
           })}
@@ -111,7 +187,14 @@ export default function CodexDashboard() {
       )}
 
       {/* Jogadores */}
-      <SectionHeader title={`Jogadores (${players.length})`} />
+      <SectionHeader
+        title={`Jogadores (${players.length})`}
+        action={
+          players.length > 0 && (
+            <Button small title="🎁 Dar XP / itens" onPress={() => router.push({ pathname: '/codex/recompensa', params: { codexId: codex.id } })} />
+          )
+        }
+      />
       {players.length === 0 && <Muted>Nenhum personagem entrou ainda. Compartilhe o código acima.</Muted>}
       {players.map((p) => (
         <Card key={p.id}>
@@ -249,4 +332,14 @@ const styles = StyleSheet.create({
   goldRow: { flexDirection: 'row', gap: spacing.sm },
   highlight: { borderColor: colors.primary, borderWidth: 2 },
   inline: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  battleChip: {
+    borderWidth: 1,
+    borderColor: colors.goldDim,
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.round,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  battleChipActive: { backgroundColor: colors.gold },
+  battleChipText: { color: colors.text, fontSize: 14, fontWeight: '700' },
 });

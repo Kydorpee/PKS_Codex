@@ -178,6 +178,32 @@ test('subir de nível cria evento e o Mestre define as recompensas', () => {
   assert.equal(data.codexes[0].levelUps[0].resolved, true);
 });
 
+test('XP excedente não passa do nível máximo', () => {
+  const hero = { ...R.characterDefaults(), id: 'h', name: 'Herói', age: 20, createdAt: 0, level: 99, xp: 0 };
+  const { character, events } = R.gainXp(hero, 20000000);
+  assert.equal(character.level, R.MAX_LEVEL);
+  assert.equal(character.xp, R.xpToNext(R.MAX_LEVEL));
+  assert.equal(events.length, 1);
+  const again = R.gainXp(character, 500);
+  assert.equal(again.character.level, R.MAX_LEVEL);
+  assert.equal(again.character.xp, R.xpToNext(R.MAX_LEVEL));
+  assert.equal(again.events.length, 0);
+});
+
+test('Mestre entrega XP e itens só aos personagens escolhidos', () => {
+  const base = setup();
+  base.characters[0].inventory = [{ id: 'p', name: 'Poção', quantity: 1, description: '' }];
+  const data = ok(E.grantRewards(base, 'cx', ['a'], 150, [{ id: 'x', name: 'poção', quantity: 2, description: '' }]));
+  const [a, b] = data.characters;
+  assert.equal(a.level, 2);
+  assert.equal(a.inventory.find((i) => i.name === 'Poção').quantity, 3, 'soma itens de mesmo nome');
+  assert.equal(b.level, 1);
+  assert.equal(b.inventory.length, 0);
+  assert.equal(data.codexes[0].levelUps.length, 1);
+  assert.ok('error' in E.grantRewards(base, 'cx', [], 10, []));
+  assert.ok('error' in E.grantRewards(base, 'cx', ['a'], 0, []));
+});
+
 test('fuga com d20 e encerramento sem vitória', () => {
   let data = ok(E.startBattle(setup([monster('lobo', 10)]), 'cx', 'lobo', ['a'], 'planicie-noite'));
   const battle = () => data.codexes[0].battles[0];

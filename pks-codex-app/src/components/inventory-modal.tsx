@@ -2,16 +2,29 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { newId } from '@/lib/ids';
-import { addToInventory, useStore } from '@/lib/store';
+import { addToInventory } from '@/lib/rules';
+import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
 import type { Character } from '@/lib/types';
 import { GoldAmount } from './monster-stats';
 import { Button, Muted, Paper, text } from './ui';
 
-export function InventoryModal({ visible, character, onClose }: { visible: boolean; character: Character; onClose: () => void }) {
+export function InventoryModal({
+  visible,
+  character,
+  freeEdit,
+  onClose,
+}: {
+  visible: boolean;
+  character: Character;
+  /** Regra "Inventário livre" do Codex: permite adicionar itens sem comprar. */
+  freeEdit: boolean;
+  onClose: () => void;
+}) {
   const { updateCharacter } = useStore();
   const [newItem, setNewItem] = useState('');
 
+  /** Sem a regra do Codex, o jogador só gasta/descarta; ganhar é pelas lojas ou pelo Mestre. */
   const changeQuantity = (itemId: string, delta: number) =>
     updateCharacter(character.id, (c) => ({
       ...c,
@@ -22,7 +35,7 @@ export function InventoryModal({ visible, character, onClose }: { visible: boole
 
   const add = () => {
     const name = newItem.trim();
-    if (!name) return;
+    if (!name || !freeEdit) return;
     updateCharacter(character.id, (c) => ({
       ...c,
       inventory: addToInventory(c.inventory, [{ id: newId(), name, quantity: 1, description: '' }]),
@@ -49,30 +62,36 @@ export function InventoryModal({ visible, character, onClose }: { visible: boole
                   {!!item.description && <Muted>{item.description}</Muted>}
                 </View>
                 <View style={styles.qty}>
-                  <Pressable accessibilityLabel="Diminuir" hitSlop={8} onPress={() => changeQuantity(item.id, -1)} style={styles.qtyButton}>
+                  <Pressable accessibilityLabel="Usar ou descartar um" hitSlop={8} onPress={() => changeQuantity(item.id, -1)} style={styles.qtyButton}>
                     <Text style={styles.qtyButtonText}>−</Text>
                   </Pressable>
                   <Text style={styles.qtyValue}>{item.quantity}</Text>
-                  <Pressable accessibilityLabel="Aumentar" hitSlop={8} onPress={() => changeQuantity(item.id, 1)} style={styles.qtyButton}>
-                    <Text style={styles.qtyButtonText}>+</Text>
-                  </Pressable>
+                  {freeEdit && (
+                    <Pressable accessibilityLabel="Aumentar" hitSlop={8} onPress={() => changeQuantity(item.id, 1)} style={styles.qtyButton}>
+                      <Text style={styles.qtyButtonText}>+</Text>
+                    </Pressable>
+                  )}
                 </View>
               </View>
             ))}
           </ScrollView>
 
-          <View style={styles.addRow}>
-            <TextInput
-              style={styles.input}
-              placeholder="Adicionar item..."
-              placeholderTextColor={colors.textMuted}
-              value={newItem}
-              onChangeText={setNewItem}
-              onSubmitEditing={add}
-              returnKeyType="done"
-            />
-            <Button title="Adicionar" disabled={!newItem.trim()} onPress={add} />
-          </View>
+          {freeEdit ? (
+            <View style={styles.addRow}>
+              <TextInput
+                style={styles.input}
+                placeholder="Adicionar item..."
+                placeholderTextColor={colors.textMuted}
+                value={newItem}
+                onChangeText={setNewItem}
+                onSubmitEditing={add}
+                returnKeyType="done"
+              />
+              <Button title="Adicionar" disabled={!newItem.trim()} onPress={add} />
+            </View>
+          ) : (
+            <Muted>Itens chegam comprando nas lojas ou pelas mãos do Mestre do Codex.</Muted>
+          )}
         </Paper>
       </SafeAreaView>
     </Modal>

@@ -3,13 +3,14 @@
  * trabalham numa cópia e devolvem os dados novos ou uma mensagem de erro.
  */
 import { newId } from './ids';
-import { STATUS_INFO, addStatus, gainXp, rollDie, splitXp } from './rules';
+import { STATUS_INFO, addStatus, addToInventory, gainXp, rollDie, splitXp } from './rules';
 import {
   MONSTER_TURN,
   type ActiveStatus,
   type Battle,
   type Character,
   type Codex,
+  type Item,
   type LogTone,
   type Monster,
   type Terrain,
@@ -399,7 +400,8 @@ export const awardXp = (data: Data, codexId: string, battleId: string, min: numb
       max,
     );
     for (const [characterId, amount] of Object.entries(split)) {
-      const index = ctx.draft.characters.findIndex((c) => c.id === characterId);
+      // Quem saiu do Codex durante a batalha não recebe (e o Mestre nem teria permissão de alterar a ficha).
+      const index = ctx.draft.characters.findIndex((c) => c.id === characterId && c.codexId === codexId);
       if (index < 0) continue;
       const { character, events } = gainXp(ctx.draft.characters[index], amount);
       ctx.draft.characters[index] = character;
@@ -409,6 +411,26 @@ export const awardXp = (data: Data, codexId: string, battleId: string, min: numb
     }
     battle.xpAwarded = split;
     clearStatuses(ctx);
+  });
+
+/** O Mestre entrega XP e itens, fora de batalha, aos personagens escolhidos. */
+export const grantRewards = (data: Data, codexId: string, characterIds: string[], xp: number, items: Item[]) =>
+  run(data, (draft) => {
+    const codex = draft.codexes.find((c) => c.id === codexId) ?? fail('Codex não encontrado.');
+    const gifts = items.filter((i) => i.name.trim() && i.quantity > 0);
+    if (characterIds.length === 0) fail('Escolha ao menos um personagem.');
+    if (xp <= 0 && gifts.length === 0) fail('Informe o XP ou adicione itens.');
+    for (const id of characterIds) {
+      const index = draft.characters.findIndex((c) => c.id === id && c.codexId === codexId);
+      if (index < 0) fail('Personagem não está neste Codex.');
+      let character = { ...draft.characters[index], inventory: addToInventory(draft.characters[index].inventory, gifts) };
+      if (xp > 0) {
+        const gained = gainXp(character, xp);
+        character = gained.character;
+        codex.levelUps.push(...gained.events);
+      }
+      draft.characters[index] = character;
+    }
   });
 
 export type LevelUpReward = {

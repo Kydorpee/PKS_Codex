@@ -42,7 +42,7 @@ function Stepper({
 
 export default function LevelUpEventScreen() {
   const { codexId, eventId } = useLocalSearchParams<{ codexId: string; eventId: string }>();
-  const { codexes, characters, act } = useStore();
+  const { codexes, characters, synced, act, updateCodex } = useStore();
   const codex = codexes.find((c) => c.id === codexId);
   const event = codex?.levelUps.find((e) => e.id === eventId);
   const character = characters.find((c) => c.id === event?.characterId);
@@ -59,10 +59,23 @@ export default function LevelUpEventScreen() {
   const set = (patch: Partial<LevelUpReward>) => setReward((r) => ({ ...r, ...patch }));
 
   if (!codex || !event || !character) {
+    const discard = () => {
+      if (codex && event) updateCodex(codex.id, (c) => ({ ...c, levelUps: c.levelUps.filter((e) => e.id !== event.id) }));
+      router.back();
+    };
     return (
       <Screen>
         <Stack.Screen options={{ title: 'Evento de nível' }} />
-        <Muted>Evento não encontrado.</Muted>
+        {!synced ? (
+          <Muted>Carregando...</Muted>
+        ) : event ? (
+          <>
+            <Muted>O personagem deste evento saiu do Codex ou foi apagado.</Muted>
+            <Button variant="danger" title="Descartar evento" onPress={discard} />
+          </>
+        ) : (
+          <Muted>Evento não encontrado.</Muted>
+        )}
       </Screen>
     );
   }

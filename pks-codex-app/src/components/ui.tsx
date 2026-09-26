@@ -366,6 +366,63 @@ export function Bar({
   );
 }
 
+export type TabItem<K extends string> = { key: K; label: string; /** Marca de atenção (ex.: "Sua vez!"). */ badge?: string };
+
+/** Abas no topo da tela: separam a batalha do resto para acompanhar só o que acontece nela. */
+export function TabBar<K extends string>({ tabs, value, onChange }: { tabs: TabItem<K>[]; value: K; onChange: (key: K) => void }) {
+  return (
+    <View accessibilityRole="tablist" style={tabStyles.bar}>
+      {tabs.map((t) => {
+        const active = t.key === value;
+        return (
+          <Pressable
+            key={t.key}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            onPress={() => onChange(t.key)}
+            style={[tabStyles.tab, active && tabStyles.tabActive]}
+          >
+            <Text style={[tabStyles.label, active && tabStyles.labelActive]} numberOfLines={1}>
+              {t.label}
+            </Text>
+            {!!t.badge && (
+              <View style={tabStyles.badge}>
+                <Text style={tabStyles.badgeText}>{t.badge}</Text>
+              </View>
+            )}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+const tabStyles = StyleSheet.create({
+  bar: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    padding: spacing.xs,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.goldDim,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+  },
+  tabActive: { backgroundColor: colors.gold },
+  label: { color: colors.textOnDarkMuted, fontSize: 15, fontWeight: '700' },
+  labelActive: { color: colors.text },
+  badge: { backgroundColor: colors.primary, borderRadius: radius.round, paddingHorizontal: 6, paddingVertical: 1 },
+  badgeText: { color: colors.onPrimary, fontSize: 11, fontWeight: '800' },
+});
+
 export const text = StyleSheet.create({
   title: { color: colors.text, fontSize: 24, fontWeight: '700' },
   subtitle: { color: colors.textMuted, fontSize: 15 },

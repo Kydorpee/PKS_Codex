@@ -1,5 +1,5 @@
 import { newId } from './ids';
-import type { ActiveStatus, Character, Codex, LevelUpEvent, StatusType } from './types';
+import type { ActiveStatus, Character, Codex, Item, LevelUpEvent, StatusType } from './types';
 
 export const DICE = [4, 6, 8, 10, 12, 20] as const;
 
@@ -29,6 +29,21 @@ export const STATUS_TYPES = Object.keys(STATUS_INFO) as StatusType[];
 export function addStatus(statuses: ActiveStatus[], type: StatusType): ActiveStatus[] {
   return [...statuses.filter((s) => s.type !== type), { type, roundsLeft: STATUS_INFO[type].rounds }];
 }
+
+/** Soma itens com o mesmo nome em vez de duplicar a entrada no inventário. */
+export function addToInventory(inventory: Item[], items: Item[]): Item[] {
+  const result = inventory.map((item) => ({ ...item }));
+  for (const item of items) {
+    if (!item.name.trim() || item.quantity <= 0) continue;
+    const existing = result.find((i) => i.name.trim().toLowerCase() === item.name.trim().toLowerCase());
+    if (existing) existing.quantity += item.quantity;
+    else result.push({ ...item, id: newId() });
+  }
+  return result;
+}
+
+/** Nível máximo que um personagem pode alcançar. */
+export const MAX_LEVEL = 100;
 
 /** XP necessário para sair do nível atual. */
 export const xpToNext = (level: number) => level * 100;
@@ -65,17 +80,26 @@ export const normalizeCodex = (c: Codex): Codex => ({
   abilities: (c.abilities ?? []).map((a) => ({ ...a, offeredTo: a.offeredTo ?? [] })),
   battles: c.battles ?? [],
   levelUps: c.levelUps ?? [],
+  startingItems: c.startingItems ?? [],
+  allowFreeInventory: c.allowFreeInventory ?? false,
 });
 
-/** Soma XP e cria um evento para cada nível ganho. */
+/**
+ * Soma XP e cria um evento para cada nível ganho. Ao chegar no nível máximo,
+ * o XP excedente é descartado e a barra fica travada no máximo.
+ */
 export function gainXp(character: Character, amount: number): { character: Character; events: LevelUpEvent[] } {
   let { level, xp } = character;
   xp += amount;
   const events: LevelUpEvent[] = [];
-  while (xp >= xpToNext(level)) {
+  while (level < MAX_LEVEL && xp >= xpToNext(level)) {
     xp -= xpToNext(level);
     level += 1;
     events.push({ id: newId(), characterId: character.id, level, resolved: false, rewards: [], createdAt: Date.now() });
+  }
+  if (level >= MAX_LEVEL) {
+    level = MAX_LEVEL;
+    xp = Math.min(xp, xpToNext(MAX_LEVEL));
   }
   return { character: { ...character, level, xp }, events };
 }

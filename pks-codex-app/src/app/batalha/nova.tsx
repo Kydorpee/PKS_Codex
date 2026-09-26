@@ -43,7 +43,8 @@ export default function NewBattle() {
       Alert.alert('Não foi possível iniciar', error ?? 'Erro desconhecido.');
       return;
     }
-    router.replace({ pathname: '/batalha/[id]', params: { id: battleId, codexId: codex.id } });
+    // Volta ao painel do Codex, que abre a batalha nova na aba "Batalhas".
+    router.back();
   };
 
   return (

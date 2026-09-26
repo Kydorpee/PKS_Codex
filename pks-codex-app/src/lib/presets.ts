@@ -251,3 +251,18 @@ export function shopFromPreset(preset: ShopPreset): Shop {
     visibleTo: [],
   };
 }
+
+/** Itens das lojas prontas e das lojas do Codex, sem repetir nomes. */
+export function itemSuggestions(shops: Shop[] = []): { name: string; description: string }[] {
+  const all = [
+    ...SHOP_PRESETS.flatMap((p) => p.items.map(([name, , description]) => ({ name, description }))),
+    ...shops.flatMap((s) => s.items.map(({ name, description }) => ({ name, description }))),
+  ];
+  const seen = new Set<string>();
+  return all.filter((i) => {
+    const key = i.name.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}

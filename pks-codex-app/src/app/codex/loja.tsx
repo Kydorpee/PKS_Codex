@@ -5,17 +5,22 @@ import { ShopItemListEditor } from '@/components/editors';
 import { GoldAmount } from '@/components/monster-stats';
 import { Button, CheckRow, Field, Muted, Screen, SectionHeader } from '@/components/ui';
 import { newId } from '@/lib/ids';
+import { SHOP_PRESETS, shopFromPreset } from '@/lib/presets';
 import { useStore } from '@/lib/store';
 import { spacing } from '@/lib/theme';
 import type { Shop } from '@/lib/types';
 
 export default function EditShop() {
-  const { codexId, shopId } = useLocalSearchParams<{ codexId: string; shopId?: string }>();
+  const { codexId, shopId, preset } = useLocalSearchParams<{ codexId: string; shopId?: string; preset?: string }>();
   const { codexes, characters, updateCodex } = useStore();
   const codex = codexes.find((c) => c.id === codexId);
   const existing = codex?.shops.find((s) => s.id === shopId);
 
-  const [draft, setDraft] = useState<Shop>(() => existing ?? { id: newId(), name: '', emoji: '🏠', items: [], visibleTo: [] });
+  const [draft, setDraft] = useState<Shop>(() => {
+    if (existing) return existing;
+    const model = SHOP_PRESETS.find((p) => p.key === preset);
+    return model ? shopFromPreset(model) : { id: newId(), name: '', emoji: '🏠', items: [], visibleTo: [] };
+  });
   const set = (patch: Partial<Shop>) => setDraft((d) => ({ ...d, ...patch }));
 
   if (!codex) return null;

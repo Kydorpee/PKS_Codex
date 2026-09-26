@@ -3,10 +3,12 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AbilityCard } from '@/components/ability-card';
+import { BattleView } from '@/components/battle-view';
 import { CharacterBars } from '@/components/character-stats';
 import { InventoryModal } from '@/components/inventory-modal';
 import { CoinIcon, StarIcon } from '@/components/monster-stats';
-import { Avatar, Button, Card, Muted, Screen, SectionHeader, Stat, text } from '@/components/ui';
+import { Avatar, Button, Card, Muted, Screen, SectionHeader, Stat, TabBar, text } from '@/components/ui';
+import { currentTurn } from '@/lib/engine';
 import { useStore } from '@/lib/store';
 import { WIDGET_CHARACTER_KEY } from '@/lib/storage-keys';
 import { colors, radius, spacing } from '@/lib/theme';
@@ -18,6 +20,8 @@ export default function CharacterSheet() {
   const [code, setCode] = useState('');
   const [bagOpen, setBagOpen] = useState(false);
   const [joining, setJoining] = useState(false);
+  // Aba escolhida; sem escolha, abre na batalha quando houver uma.
+  const [chosenTab, setChosenTab] = useState<'ficha' | 'batalha'>();
 
   // O widget da tela inicial mostra o último personagem aberto.
   useEffect(() => {
@@ -39,6 +43,10 @@ export default function CharacterSheet() {
   const offers = codex?.abilities.filter((a) => a.offeredTo.includes(character.id)) ?? [];
   const battle = codex?.battles.find((b) => b.status !== 'encerrada' && !b.xpAwarded && b.participants.some((p) => p.characterId === character.id));
   const battleMonster = codex?.monsters.find((m) => m.id === battle?.monsterId);
+  const inBattle = !!(codex && battle && battleMonster);
+  const tab = inBattle ? (chosenTab ?? 'batalha') : 'ficha';
+  const battleBadge =
+    battle?.status === 'vitoria' ? '🏆' : battle && currentTurn(battle) === character.id && !battle.pending ? 'Sua vez!' : undefined;
   const levelUps = (codex?.levelUps.filter((e) => e.characterId === character.id) ?? []).slice(-3).reverse();
   const itemCount = character.inventory.reduce((sum, i) => sum + i.quantity, 0);
 
@@ -69,9 +77,31 @@ export default function CharacterSheet() {
       },
     ]);
 
+  const tabs = inBattle && (
+    <TabBar
+      value={tab}
+      onChange={setChosenTab}
+      tabs={[
+        { key: 'ficha', label: '📜 Ficha' },
+        { key: 'batalha', label: '⚔️ Batalha', badge: battleBadge },
+      ]}
+    />
+  );
+
+  if (tab === 'batalha' && codex && battle) {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: `⚔️ ${battleMonster?.name ?? 'Batalha'}` }} />
+        {tabs}
+        <BattleView key={battle.id} codexId={codex.id} battleId={battle.id} characterId={character.id} />
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <Stack.Screen options={{ title: character.name }} />
+      {tabs}
 
       {/* Juntar-se a um Codex */}
       <Card style={styles.codexCard}>
@@ -102,16 +132,6 @@ export default function CharacterSheet() {
           </>
         )}
       </Card>
-
-      {codex && battle && battleMonster && (
-        <Card
-          style={styles.battleCard}
-          onPress={() => router.push({ pathname: '/batalha/[id]', params: { id: battle.id, codexId: codex.id, characterId: character.id } })}
-        >
-          <Text style={text.accentStrong}>⚔️ Em batalha contra {battleMonster.name}!</Text>
-          <Muted>{battle.status === 'vitoria' ? 'Vitória! Aguardando o XP.' : 'Toque para entrar na batalha.'}</Muted>
-        </Card>
-      )}
 
       {/* Identidade */}
       <Card>
@@ -222,7 +242,12 @@ export default function CharacterSheet() {
         <Button variant="danger" title="Apagar" style={{ flex: 1 }} onPress={confirmDelete} />
       </View>
 
-      <InventoryModal visible={bagOpen} character={character} onClose={() => setBagOpen(false)} />
+      <InventoryModal
+        visible={bagOpen}
+        character={character}
+        freeEdit={!!codex?.allowFreeInventory}
+        onClose={() => setBagOpen(false)}
+      />
     </Screen>
   );
 }

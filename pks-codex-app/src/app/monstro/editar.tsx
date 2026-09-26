@@ -7,7 +7,8 @@ import { PixelIcon } from '@/components/pixel-icon';
 import { Button, CheckRow, Field, Muted, Screen, SectionHeader } from '@/components/ui';
 import { newId } from '@/lib/ids';
 import { pickPhoto } from '@/lib/photos';
-import { addToInventory, useStore } from '@/lib/store';
+import { addToInventory } from '@/lib/rules';
+import { useStore } from '@/lib/store';
 import { colors, spacing } from '@/lib/theme';
 import type { Monster } from '@/lib/types';
 

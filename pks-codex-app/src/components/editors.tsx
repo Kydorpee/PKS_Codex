@@ -142,22 +142,42 @@ export function AbilityListEditor({ value, onChange }: { value: Ability[]; onCha
   );
 }
 
+export type ItemSuggestion = { name: string; description: string };
+
 export function ItemListEditor({
   title,
   value,
   onChange,
+  suggestions,
 }: {
   title: string;
   value: Item[];
   onChange: (v: Item[]) => void;
+  /** Itens prontos: tocar adiciona à lista (ou soma 1 se já estiver nela). */
+  suggestions?: ItemSuggestion[];
 }) {
   const update = (id: string, patch: Partial<Item>) => onChange(value.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+  const pick = (s: ItemSuggestion) => {
+    const key = s.name.trim().toLowerCase();
+    const existing = value.find((i) => i.name.trim().toLowerCase() === key);
+    if (existing) update(existing.id, { quantity: existing.quantity + 1 });
+    else onChange([...value, { id: newId(), name: s.name, quantity: 1, description: s.description }]);
+  };
   return (
     <View style={styles.list}>
       <SectionHeader
         title={title}
         action={<Button small variant="secondary" title="+ Adicionar" onPress={() => onChange([...value, { id: newId(), name: '', quantity: 1, description: '' }])} />}
       />
+      {!!suggestions?.length && (
+        <View style={styles.wrap}>
+          {suggestions.map((s) => (
+            <Pressable key={s.name} accessibilityRole="button" onPress={() => pick(s)} style={[styles.chip, styles.chipSmall]}>
+              <Text style={styles.chipText}>+ {s.name}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
       {value.map((i) => (
         <View key={i.id} style={styles.row}>
           <View style={styles.rowFields}>

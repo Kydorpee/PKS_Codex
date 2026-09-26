@@ -25,6 +25,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#8A1519",
+          "defaultChannel": "jogo"
+        }
+      ],
       "expo-status-bar",
       [
         "expo-image-picker",
