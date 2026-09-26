@@ -1,0 +1,66 @@
+{
+  "expo": {
+    "name": "PKS Codex",
+    "slug": "pks-codex",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.pkscodex.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#2B2B2B",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.pkscodex.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O PKS Codex usa suas fotos para a imagem do personagem e dos monstros.",
+          "cameraPermission": "O PKS Codex usa a câmera para tirar a foto do personagem e dos monstros."
+        }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "PksCharacter",
+              "label": "PKS Codex — Personagem",
+              "description": "Vida, mana, estamina, nível e ouro do seu personagem",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 288,
+          "resizeMode": "contain",
+          "backgroundColor": "#F6EFDF"
+        }
+      ]
+    ],
+    "scheme": "pkscodex"
+  }
+}

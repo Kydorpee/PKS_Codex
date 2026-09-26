@@ -1,0 +1,101 @@
+import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
+import { Alert, StyleSheet, View } from 'react-native';
+import { ShopItemListEditor } from '@/components/editors';
+import { GoldAmount } from '@/components/monster-stats';
+import { Button, CheckRow, Field, Muted, Screen, SectionHeader } from '@/components/ui';
+import { newId } from '@/lib/ids';
+import { useStore } from '@/lib/store';
+import { spacing } from '@/lib/theme';
+import type { Shop } from '@/lib/types';
+
+export default function EditShop() {
+  const { codexId, shopId } = useLocalSearchParams<{ codexId: string; shopId?: string }>();
+  const { codexes, characters, updateCodex } = useStore();
+  const codex = codexes.find((c) => c.id === codexId);
+  const existing = codex?.shops.find((s) => s.id === shopId);
+
+  const [draft, setDraft] = useState<Shop>(() => existing ?? { id: newId(), name: '', emoji: '🏠', items: [], visibleTo: [] });
+  const set = (patch: Partial<Shop>) => setDraft((d) => ({ ...d, ...patch }));
+
+  if (!codex) return null;
+  const players = characters.filter((c) => c.codexId === codex.id);
+
+  const toggleVisible = (characterId: string) =>
+    set({
+      visibleTo: draft.visibleTo.includes(characterId)
+        ? draft.visibleTo.filter((id) => id !== characterId)
+        : [...draft.visibleTo, characterId],
+    });
+
+  const save = () => {
+    if (!draft.name.trim()) {
+      Alert.alert('Nome obrigatório', 'Dê um nome ao local.');
+      return;
+    }
+    const shop: Shop = {
+      ...draft,
+      name: draft.name.trim(),
+      emoji: draft.emoji.trim() || '🏠',
+      items: draft.items.filter((i) => i.name.trim()),
+    };
+    updateCodex(codex.id, (c) => ({
+      ...c,
+      shops: c.shops.some((s) => s.id === shop.id) ? c.shops.map((s) => (s.id === shop.id ? shop : s)) : [...c.shops, shop],
+    }));
+    router.back();
+  };
+
+  const confirmDelete = () =>
+    Alert.alert('Apagar local?', `${draft.name} deixará de existir para todos os jogadores.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Apagar',
+        style: 'destructive',
+        onPress: () => {
+          updateCodex(codex.id, (c) => ({ ...c, shops: c.shops.filter((s) => s.id !== draft.id) }));
+          router.back();
+        },
+      },
+    ]);
+
+  return (
+    <Screen>
+      <Stack.Screen options={{ title: existing ? draft.name || 'Local' : 'Novo local' }} />
+      <View style={styles.inline}>
+        <View style={{ width: 80 }}>
+          <Field label="Ícone" value={draft.emoji} maxLength={4} onChangeText={(emoji) => set({ emoji })} style={styles.emoji} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Field label="Nome do local" placeholder="Ex.: Ferreiro do Porto" value={draft.name} onChangeText={(name) => set({ name })} />
+        </View>
+      </View>
+
+      <ShopItemListEditor value={draft.items} onChange={(items) => set({ items })} />
+
+      <SectionHeader title="Quem pode ver" />
+      {players.length === 0 ? (
+        <Muted>Nenhum jogador no Codex ainda. Quando entrarem, marque aqui quem pode ver este local.</Muted>
+      ) : (
+        players.map((p) => (
+          <CheckRow
+            key={p.id}
+            label={p.name}
+            uri={p.photoUri}
+            detail={<GoldAmount value={p.gold} size={14} />}
+            checked={draft.visibleTo.includes(p.id)}
+            onToggle={() => toggleVisible(p.id)}
+          />
+        ))
+      )}
+
+      <Button title="Salvar local" onPress={save} style={{ marginTop: spacing.lg }} />
+      {existing && <Button variant="danger" title="Apagar local" onPress={confirmDelete} />}
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  inline: { flexDirection: 'row', gap: spacing.md },
+  emoji: { textAlign: 'center', fontSize: 22 },
+});

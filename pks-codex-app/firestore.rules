@@ -1,0 +1,44 @@
+rules_version = '2';
+
+// Regras do PKS Codex. Publique com: npx firebase-tools deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Dono do Codex (Mestre) ou jogador que entrou nele.
+    function inCodex(codexId) {
+      let codex = get(/databases/$(database)/documents/codexes/$(codexId)).data;
+      return codex.ownerUid == request.auth.uid || request.auth.uid in codex.get('members', []);
+    }
+
+    match /characters/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      // O dono edita a ficha; o Mestre e os colegas de Codex aplicam dano, cura, XP e recompensas.
+      allow update: if signedIn()
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && (resource.data.ownerUid == request.auth.uid
+            || (resource.data.get('codexId', null) != null && inCodex(resource.data.codexId)));
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /codexes/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if signedIn()
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && (resource.data.ownerUid == request.auth.uid
+            || request.auth.uid in resource.data.get('members', [])
+            || isJoining());
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+
+      // Entrar com o código: a única mudança permitida é se adicionar à lista de membros.
+      function isJoining() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
+          && request.resource.data.members.removeAll(resource.data.get('members', [])) == [request.auth.uid];
+      }
+    }
+  }
+}
