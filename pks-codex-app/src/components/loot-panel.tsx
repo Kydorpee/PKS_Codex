@@ -1,4 +1,4 @@
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Muted, text } from './ui';
 import { currentLooter, foeNames, passLoot, takeLoot, type Data, type Result } from '@/lib/engine';
 import { useStore } from '@/lib/store';
@@ -69,6 +69,7 @@ export function LootPanel({ codex, battle, characterId }: { codex: Codex; battle
       {loot.items.length === 0 && <Muted>Não sobrou nenhum item.</Muted>}
       {loot.items.map((item) => (
         <View key={item.id} style={styles.item}>
+          {item.photoUri && <Image source={{ uri: item.photoUri }} style={styles.photo} />}
           <View style={{ flex: 1 }}>
             <Text style={text.strong}>
               {item.name} <Text style={text.accent}>x{item.quantity}</Text>
@@ -89,6 +90,7 @@ export function LootPanel({ codex, battle, characterId }: { codex: Codex; battle
 
 const styles = StyleSheet.create({
   mine: { borderColor: colors.primary, borderWidth: 2 },
+  photo: { width: 44, height: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.goldDim },
   order: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   turn: {
     borderRadius: radius.round,

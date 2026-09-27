@@ -40,8 +40,10 @@ export function addToInventory(inventory: Item[], items: Item[]): Item[] {
   for (const item of items) {
     if (!item.name.trim() || item.quantity <= 0) continue;
     const existing = result.find((i) => i.name.trim().toLowerCase() === item.name.trim().toLowerCase());
-    if (existing) existing.quantity += item.quantity;
-    else result.push({ ...item, id: newId() });
+    if (existing) {
+      existing.quantity += item.quantity;
+      if (!existing.photoUri && item.photoUri) existing.photoUri = item.photoUri;
+    } else result.push({ ...item, id: newId() });
   }
   return result;
 }
@@ -59,6 +61,7 @@ export function characterDefaults(): Omit<Character, 'id' | 'name' | 'age' | 'cr
     race: '',
     abilities: [],
     inventory: [],
+    mountIds: [],
     gold: 100,
     level: 1,
     xp: 0,
@@ -123,6 +126,7 @@ export const normalizeCodex = (c: Codex): Codex => ({
   shops: c.shops ?? [],
   abilities: (c.abilities ?? []).map((a) => ({ ...a, offeredTo: a.offeredTo ?? [] })),
   classes: (c.classes ?? []).map((k) => ({ ...k, offeredTo: k.offeredTo ?? [] })),
+  mounts: c.mounts ?? [],
   battles: (c.battles ?? []).map(normalizeBattle),
   levelUps: c.levelUps ?? [],
   startingItems: c.startingItems ?? [],
@@ -183,5 +187,29 @@ export function applyClass(character: Character, codex: Codex, classId: string |
 }
 
 /** Classe dada a quem entra no Codex: a inicial escolhida pelo Mestre, ou a primeira criada. */
+/** Montarias do Codex que o personagem tem. */
+export const mountsOf = (character: Character, codex: Codex | undefined) =>
+  codex ? codex.mounts.filter((m) => character.mountIds.includes(m.id)) : [];
+
+/**
+ * Habilidades do personagem separadas por categoria. As de classe e gerais ficam na ficha
+ * (cópias das do Codex); as de montaria vêm das montarias que ele tem.
+ */
+export function abilityGroups(character: Character, codex: Codex | undefined) {
+  const classIds = new Set(codex?.abilities.filter((a) => a.classId).map((a) => a.id));
+  return {
+    classe: character.abilities.filter((a) => classIds.has(a.id)),
+    geral: character.abilities.filter((a) => !classIds.has(a.id)),
+    montaria: mountsOf(character, codex).map((mount) => ({ mount, abilities: mount.abilities })),
+  };
+}
+
+/** Procura uma habilidade do personagem, inclusive as das montarias dele. */
+export const findAbility = (character: Character | undefined, codex: Codex | undefined, abilityId: string | undefined) =>
+  !character || !abilityId
+    ? undefined
+    : (character.abilities.find((a) => a.id === abilityId) ??
+      mountsOf(character, codex).flatMap((m) => m.abilities).find((a) => a.id === abilityId));
+
 export const startingClassOf = (codex: Codex) =>
   codex.classes.find((k) => k.id === codex.startingClassId)?.id ?? codex.classes[0]?.id;

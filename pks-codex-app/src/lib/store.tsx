@@ -22,7 +22,7 @@ import { addToInventory, applyClass, normalizeCharacter, normalizeCodex, startin
 import { CACHE_CHARACTERS_KEY, CACHE_UID_KEY, CHARACTERS_KEY, CODEXES_KEY, MIGRATED_KEY } from './storage-keys';
 import { diffData, replaceDoc, sameDoc, withOwner, type DocChange, type DocKind, type Doc } from './sync';
 import { refreshWidget } from '@/widget';
-import { MAX_CHARACTERS, type Character, type Codex, type CodexAbility, type CodexClass } from './types';
+import { MAX_CHARACTERS, type Character, type Codex, type CodexAbility, type CodexClass, type Mount } from './types';
 
 type Store = Data & {
   /** Há dados para mostrar (do servidor ou da cópia guardada no aparelho). */
@@ -65,6 +65,10 @@ type Store = Data & {
   setStartingClass: (codexId: string, classId: string) => void;
   /** O jogador escolhe (troca para) ou recusa uma classe liberada pelo Mestre. */
   respondClassOffer: (characterId: string, codexId: string, classId: string, accept: boolean) => void;
+  /** Cria/edita uma montaria e define quem a tem (`ownerIds`). */
+  saveMount: (codexId: string, mount: Mount, ownerIds: string[]) => void;
+  /** Apaga a montaria: sai dos personagens e das lojas. */
+  deleteMount: (codexId: string, mountId: string) => void;
   /** Executa uma regra do engine (batalha, nível). Retorna mensagem de erro, se houver. */
   act: (rule: (data: Data) => Result) => string | null;
 };
@@ -78,10 +82,10 @@ const withoutCharacter = (codex: Codex, characterId: string): Codex => ({
   abilities: codex.abilities.map((a) => ({ ...a, offeredTo: a.offeredTo.filter((id) => id !== characterId) })),
 });
 
-/** Personagem saindo do Codex: perde a classe (e as habilidades dela). */
+/** Personagem saindo do Codex: perde a classe (e as habilidades dela) e as montarias. */
 const leaveClass = (data: Data, c: Character): Character => {
   const codex = data.codexes.find((x) => x.id === c.codexId);
-  return { ...(codex ? applyClass(c, codex, undefined) : c), codexId: undefined };
+  return { ...(codex ? applyClass(c, codex, undefined) : c), codexId: undefined, mountIds: [] };
 };
 
 const mapCharacter = (data: Data, id: string, change: (c: Character) => Character): Data => ({
@@ -561,12 +565,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (!character || !shop || !item) return 'Item indisponível.';
         if (!shop.visibleTo.includes(characterId)) return 'Esta loja não está disponível para você.';
         if (character.gold < item.price) return 'Ouro insuficiente.';
+        if (item.mountId) {
+          if (!codexes.find((c) => c.id === codexId)?.mounts.some((m) => m.id === item.mountId)) return 'Esta montaria não existe mais.';
+          if (character.mountIds.includes(item.mountId)) return 'Você já tem esta montaria.';
+        }
         updateCharacter(characterId, (c) => {
           if (c.gold < item.price) throw new ActionError('Ouro insuficiente.');
+          if (item.mountId) {
+            if (c.mountIds.includes(item.mountId)) throw new ActionError('Você já tem esta montaria.');
+            return { ...c, gold: c.gold - item.price, mountIds: [...c.mountIds, item.mountId] };
+          }
           return {
             ...c,
             gold: c.gold - item.price,
-            inventory: addToInventory(c.inventory, [{ id: newId(), name: item.name, quantity: 1, description: item.description }]),
+            inventory: addToInventory(c.inventory, [
+              { id: newId(), name: item.name, quantity: 1, description: item.description, ...(item.photoUri ? { photoUri: item.photoUri } : {}) },
+            ]),
           };
         });
         return null;
@@ -666,6 +680,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       revokeAbility: (characterId: string, abilityId: string) =>
         updateCharacter(characterId, (c) => ({ ...c, abilities: c.abilities.filter((a) => a.id !== abilityId) })),
+
+      saveMount: (codexId: string, mount: Mount, ownerIds: string[]) =>
+        mutate((d) => ({
+          codexes: mapCodex(d, codexId, (codex) => ({
+            ...codex,
+            mounts: codex.mounts.some((m) => m.id === mount.id)
+              ? codex.mounts.map((m) => (m.id === mount.id ? mount : m))
+              : [...codex.mounts, mount],
+            // O nome na loja acompanha a montaria.
+            shops: codex.shops.map((s) => ({
+              ...s,
+              items: s.items.map((i) => (i.mountId === mount.id ? { ...i, name: mount.name, photoUri: mount.photoUri } : i)),
+            })),
+          })).codexes,
+          characters: d.characters.map((c) => {
+            if (c.codexId !== codexId) return c;
+            const owns = c.mountIds.includes(mount.id);
+            const should = ownerIds.includes(c.id);
+            if (owns === should) return c;
+            return { ...c, mountIds: should ? [...c.mountIds, mount.id] : c.mountIds.filter((id) => id !== mount.id) };
+          }),
+        })),
+
+      deleteMount: (codexId: string, mountId: string) =>
+        mutate((d) => ({
+          codexes: mapCodex(d, codexId, (codex) => ({
+            ...codex,
+            mounts: codex.mounts.filter((m) => m.id !== mountId),
+            shops: codex.shops.map((s) => ({ ...s, items: s.items.filter((i) => i.mountId !== mountId) })),
+          })).codexes,
+          characters: d.characters.map((c) => (c.mountIds.includes(mountId) ? { ...c, mountIds: c.mountIds.filter((id) => id !== mountId) } : c)),
+        })),
 
       act: (rule: (data: Data) => Result) => {
         const result = rule(current.current);

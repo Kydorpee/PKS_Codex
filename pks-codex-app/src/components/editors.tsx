@@ -1,9 +1,10 @@
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { newId } from '@/lib/ids';
+import { pickPhoto, SMALL_PHOTO } from '@/lib/photos';
 import { colors, radius, spacing } from '@/lib/theme';
 import { STATUS_INFO, STATUS_TYPES } from '@/lib/rules';
-import type { Ability, AbilityKind, Attribute, Item, ShopItem, StatusType } from '@/lib/types';
+import type { Ability, AbilityKind, Attribute, Item, Mount, ShopItem, StatusType } from '@/lib/types';
 import { BlastIcon, CostIcon } from './monster-stats';
 import { Avatar, Button, SectionHeader } from './ui';
 
@@ -46,6 +47,34 @@ export function PhotoField({
   );
 }
 
+/**
+ * Miniatura quadrada de foto: toque para escolher da galeria (foto pequena, para caber no Codex);
+ * o ✕ remove. Usada em habilidades, itens, itens de loja e montarias.
+ */
+export function PhotoThumb({ uri, onChange, size = 56, placeholder = '📷' }: { uri?: string; onChange: (uri?: string) => void; size?: number; placeholder?: string }) {
+  const pick = async () => {
+    const photo = await pickPhoto(SMALL_PHOTO);
+    if (photo) onChange(photo);
+  };
+  return (
+    <View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={uri ? 'Trocar foto' : 'Adicionar foto'}
+        onPress={pick}
+        style={[styles.thumb, { width: size, height: size }]}
+      >
+        {uri ? <Image source={{ uri }} style={{ width: '100%', height: '100%' }} /> : <Text style={{ fontSize: size * 0.4 }}>{placeholder}</Text>}
+      </Pressable>
+      {uri && (
+        <Pressable accessibilityLabel="Remover foto" hitSlop={8} onPress={() => onChange(undefined)} style={styles.thumbRemove}>
+          <Text style={styles.thumbRemoveText}>✕</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
 export const emptyAbility = (): Ability => ({ id: newId(), name: '', description: '', kind: 'fisica', cost: 0, baseDamage: '' });
 
 const KINDS: { kind: AbilityKind; label: string }[] = [
@@ -58,7 +87,10 @@ export function AbilityFields<T extends Ability>({ value, onChange }: { value: T
   const set = (patch: Partial<Ability>) => onChange({ ...value, ...patch });
   return (
     <View style={styles.rowFields}>
-      <Input placeholder="Nome da habilidade" value={value.name} onChangeText={(name) => set({ name })} />
+      <View style={[styles.inline, { alignItems: 'center' }]}>
+        <PhotoThumb uri={value.photoUri} onChange={(photoUri) => set({ photoUri })} placeholder="✨" />
+        <Input style={{ flex: 1 }} placeholder="Nome da habilidade" value={value.name} onChangeText={(name) => set({ name })} />
+      </View>
       <View style={styles.inline}>
         {KINDS.map(({ kind, label }) => (
           <Pressable
@@ -180,6 +212,7 @@ export function ItemListEditor({
       )}
       {value.map((i) => (
         <View key={i.id} style={styles.row}>
+          <PhotoThumb uri={i.photoUri} onChange={(photoUri) => update(i.id, { photoUri })} placeholder="🎒" />
           <View style={styles.rowFields}>
             <View style={styles.inline}>
               <Input style={{ flex: 1 }} placeholder="Nome do item" value={i.name} onChangeText={(name) => update(i.id, { name })} />
@@ -226,19 +259,46 @@ export function AttributeListEditor({ value, onChange }: { value: Attribute[]; o
   );
 }
 
-export function ShopItemListEditor({ value, onChange }: { value: ShopItem[]; onChange: (v: ShopItem[]) => void }) {
+/** Itens à venda num local. `mounts`: montarias do Codex que podem ser postas à venda. */
+export function ShopItemListEditor({ value, onChange, mounts = [] }: { value: ShopItem[]; onChange: (v: ShopItem[]) => void; mounts?: Mount[] }) {
   const update = (id: string, patch: Partial<ShopItem>) => onChange(value.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+  const forSale = mounts.filter((m) => !value.some((i) => i.mountId === m.id));
+  const sellMount = (m: Mount) =>
+    onChange([...value, { id: newId(), name: m.name, price: 100, description: m.description, mountId: m.id, ...(m.photoUri ? { photoUri: m.photoUri } : {}) }]);
   return (
     <View style={styles.list}>
       <SectionHeader
         title="Itens à venda"
         action={<Button small variant="secondary" title="+ Adicionar" onPress={() => onChange([...value, { id: newId(), name: '', price: 0, description: '' }])} />}
       />
+      {forSale.length > 0 && (
+        <View style={styles.wrap}>
+          {forSale.map((m) => (
+            <Pressable key={m.id} accessibilityRole="button" onPress={() => sellMount(m)} style={[styles.chip, styles.chipSmall]}>
+              <Text style={styles.chipText}>+ {m.emoji} {m.name} (montaria)</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
       {value.map((i) => (
         <View key={i.id} style={styles.row}>
+          {i.mountId ? (
+            <View style={[styles.thumb, { width: 56, height: 56 }]}>
+              {i.photoUri ? <Image source={{ uri: i.photoUri }} style={{ width: '100%', height: '100%' }} /> : <Text style={{ fontSize: 22 }}>🐎</Text>}
+            </View>
+          ) : (
+            <PhotoThumb uri={i.photoUri} onChange={(photoUri) => update(i.id, { photoUri })} placeholder="🗡️" />
+          )}
           <View style={styles.rowFields}>
+            {i.mountId && <Text style={styles.miniLabel}>🐎 Montaria: comprar dá a montaria (nome e foto vêm dela)</Text>}
             <View style={styles.inline}>
-              <Input style={{ flex: 1 }} placeholder="Nome do item" value={i.name} onChangeText={(name) => update(i.id, { name })} />
+              <Input
+                style={{ flex: 1 }}
+                placeholder="Nome do item"
+                editable={!i.mountId}
+                value={i.name}
+                onChangeText={(name) => update(i.id, { name })}
+              />
               <Input
                 style={styles.number}
                 placeholder="Preço"
@@ -258,6 +318,27 @@ export function ShopItemListEditor({ value, onChange }: { value: ShopItem[]; onC
 
 const styles = StyleSheet.create({
   photoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+  thumb: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.goldDim,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  thumbRemove: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbRemoveText: { color: colors.onPrimary, fontSize: 11, fontWeight: '800' },
   list: { gap: spacing.sm },
   row: {
     flexDirection: 'row',

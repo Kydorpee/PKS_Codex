@@ -233,16 +233,55 @@ test('Mestre entrega XP e itens só aos personagens escolhidos', () => {
   assert.ok('error' in E.grantRewards(base, 'cx', ['a'], 0, []));
 });
 
-test('fuga com d20 e encerramento sem vitória', () => {
-  let data = ok(E.startBattle(setup([monster('lobo', 10)]), 'cx', ['lobo'], ['a'], 'planicie-noite'));
+test('fuga: o jogador rola o dado e o Mestre aceita ou recusa (com dano, status ou só passando a vez)', () => {
+  let data = ok(E.startBattle(setup([monster('lobo', 10)]), 'cx', ['lobo'], ['a', 'b'], 'planicie-noite'));
   const battle = () => data.codexes[0].battles[0];
-  for (let i = 0; i < 40 && !battle().participants[0].fled; i++) {
-    data =
-      E.foeOf(battle(), E.currentTurn(battle()))
-        ? ok(E.monsterAction(data, 'cx', battle().id, { targetId: 'a', roll: { sides: 20, value: 5 }, damage: 0 }))
-        : ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'fugir' }));
-  }
+  const hero = (id) => data.characters.find((c) => c.id === id);
+  /** Passa turnos (monstro sem ação) até a vez de `id`. */
+  const until = (id) => {
+    while (E.currentTurn(battle()) !== id) {
+      data = E.foeOf(battle(), E.currentTurn(battle()))
+        ? ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }))
+        : ok(E.skipTurn(data, 'cx', battle().id));
+    }
+  };
+
+  until('a');
+  assert.equal(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'fugir', roll: { sides: 20, value: 0 } }).error, 'Digite o valor do dado.');
+  data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'fugir', roll: { sides: 20, value: 12 } }));
+  assert.deepEqual([battle().pending.kind, battle().pending.dice, battle().pending.diceSides], ['fuga', 12, 20]);
+  assert.ok('error' in E.resolveAction(data, 'cx', battle().id, { type: 'nada' }), 'fuga só se resolve pela decisão de fuga');
+
+  // Recusada com dano e status.
+  const hp = hero('a').hp;
+  data = ok(E.resolveFlee(data, 'cx', battle().id, { accepted: false, damage: 3, status: 'veneno' }));
+  assert.equal(hero('a').hp, hp - 3);
+  assert.equal(hero('a').statuses[0].type, 'veneno');
+  assert.equal(battle().participants[0].fled, false);
+  assert.equal(battle().pending, undefined);
+  assert.notEqual(E.currentTurn(battle()), 'a', 'passou a vez');
+  assert.match(battle().log.map((l) => l.text).join(' | '), /fuga de Aria falhou: sofre 3 de dano e fica envenenado/);
+
+  // Recusada sem nada: só passa a vez.
+  until('b');
+  data = ok(E.playerAction(data, 'cx', battle().id, 'b', { kind: 'fugir', roll: { sides: 6, value: 2 } }));
+  const hpB = hero('b').hp;
+  data = ok(E.resolveFlee(data, 'cx', battle().id, { accepted: false }));
+  assert.equal(hero('b').hp, hpB);
+  assert.match(battle().log.map((l) => l.text).join(' | '), /fuga de Bram falhou e perde a vez/);
+
+  // Aceita: sai da batalha e não joga mais.
+  until('a');
+  data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'fugir', roll: { sides: 20, value: 18 } }));
+  data = ok(E.resolveFlee(data, 'cx', battle().id, { accepted: true }));
   assert.equal(battle().participants[0].fled, true);
+  assert.deepEqual(hero('a').statuses, [], 'sai sem os status');
+  for (let i = 0; i < 6; i++) {
+    assert.notEqual(E.currentTurn(battle()), 'a', 'quem fugiu não tem mais turno');
+    data = E.foeOf(battle(), E.currentTurn(battle()))
+      ? ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }))
+      : ok(E.skipTurn(data, 'cx', battle().id));
+  }
   data = ok(E.endBattle(data, 'cx', battle().id));
   assert.equal(battle().status, 'encerrada');
 });
@@ -437,4 +476,73 @@ test('batalha salva no formato antigo (um monstro) é convertida', () => {
   let data = { ...setup(), codexes: [codex] };
   data = ok(E.monsterAction(data, 'cx', 'b1', { targetId: 'a', roll: { sides: 20, value: 10 }, damage: 2 }));
   assert.equal(E.currentTurn(data.codexes[0].battles[0]), 'a');
+});
+
+test('habilidades por categoria: classe, geral e montaria; a de montaria funciona na batalha', () => {
+  const data0 = setup([monster('lobo', 30)]);
+  const codex = data0.codexes[0];
+  codex.classes = [{ id: 'mago', name: 'Mago', emoji: '🔮', description: '', offeredTo: [] }];
+  codex.abilities.push({ ...fireball, id: 'fb', classId: 'mago', offeredTo: [] });
+  codex.mounts = [{ id: 'cavalo', name: 'Cavalo', emoji: '🐎', description: '', abilities: [{ ...fireball, id: 'coice', name: 'Coice', kind: 'fisica', cost: 1, status: undefined }] }];
+  const aria = data0.characters[0];
+  aria.abilities = [{ ...fireball, id: 'fb' }, { ...fireball, id: 'geral', name: 'Geral' }];
+  aria.mountIds = ['cavalo'];
+  const groups = R.abilityGroups(aria, codex);
+  assert.deepEqual(groups.classe.map((a) => a.id), ['fb']);
+  assert.deepEqual(groups.geral.map((a) => a.id), ['geral']);
+  assert.deepEqual(groups.montaria.map((g) => [g.mount.id, g.abilities.map((a) => a.id)]), [['cavalo', ['coice']]]);
+
+  let data = ok(E.startBattle(data0, 'cx', ['lobo'], ['a'], 'planicie'));
+  const battle = () => data.codexes[0].battles[0];
+  data = untilTurn(data, 'a');
+  const stamina = data.characters[0].stamina;
+  data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'habilidade', abilityId: 'coice', roll: { sides: 20, value: 15 } }));
+  assert.equal(battle().pending.abilityId, 'coice');
+  assert.equal(data.characters[0].stamina, stamina - 1, 'gasta o custo da habilidade da montaria');
+  data.characters[0].mountIds = [];
+  data = ok(E.resolveAction(data, 'cx', battle().id, { type: 'dano', amount: 4 }));
+  data = untilTurn(data, 'a');
+  assert.equal(
+    E.playerAction(data, 'cx', battle().id, 'a', { kind: 'habilidade', abilityId: 'coice', roll: { sides: 20, value: 15 } }).error,
+    'Habilidade não encontrada.',
+    'sem a montaria, sem a habilidade',
+  );
+});
+
+test('personagem caído: a cura escolhida pelo Mestre levanta, e o Mestre pode levantar com a vida que quiser', () => {
+  let data = ok(E.startBattle(setup([monster('lobo', 30)]), 'cx', ['lobo'], ['a', 'b'], 'planicie'));
+  const battle = () => data.codexes[0].battles[0];
+  const hero = (id) => data.characters.find((c) => c.id === id);
+  const until = (id) => {
+    while (E.currentTurn(battle()) !== id) {
+      data = E.foeOf(battle(), E.currentTurn(battle()))
+        ? ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }))
+        : ok(E.skipTurn(data, 'cx', battle().id));
+    }
+  };
+  until('a');
+  data.characters[1].hp = 0; // Bram caiu
+  data.characters[1].statuses = [{ type: 'veneno', roundsLeft: 2 }];
+  assert.ok('error' in E.reviveCharacter(data, 'cx', battle().id, 'a', 5), 'quem está de pé não é levantado');
+
+  // Aria usa uma cura e o Mestre escolhe Bram, caído.
+  data.characters[0].abilities.push({ ...fireball, id: 'cura', name: 'Cura', baseDamage: '', status: undefined, cost: 0 });
+  data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'habilidade', abilityId: 'cura', roll: { sides: 20, value: 3 } }));
+  data = ok(E.resolveAction(data, 'cx', battle().id, { type: 'cura', amount: 6, targetIds: ['b'] }));
+  assert.equal(hero('b').hp, 6);
+  assert.deepEqual(hero('b').statuses, [], 'levanta sem os status');
+  assert.match(battle().log.map((l) => l.text).join(' | '), /levanta Bram com 6 de vida/);
+
+  // O Mestre levanta direto, limitado à vida máxima.
+  data.characters[1].hp = 0;
+  assert.equal(E.reviveCharacter(data, 'cx', battle().id, 'b', 0).error, 'Digite quanta vida ele recupera.');
+  data = ok(E.reviveCharacter(data, 'cx', battle().id, 'b', 999));
+  assert.equal(hero('b').hp, hero('b').maxHp);
+  until('b'); // de pé, volta a ter turno
+  assert.equal(E.currentTurn(battle()), 'b');
+
+  // Quem fugiu não pode ser levantado.
+  data.characters[1].hp = 0;
+  data.codexes[0].battles[0].participants[1].fled = true;
+  assert.ok('error' in E.reviveCharacter(data, 'cx', battle().id, 'b', 5));
 });

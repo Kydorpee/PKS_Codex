@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { newId } from '@/lib/ids';
 import { addToInventory } from '@/lib/rules';
@@ -57,6 +57,7 @@ export function InventoryModal({
             {character.inventory.length === 0 && <Muted>A bolsa está vazia.</Muted>}
             {character.inventory.map((item) => (
               <View key={item.id} style={styles.item}>
+                {item.photoUri && <Image source={{ uri: item.photoUri }} style={styles.photo} />}
                 <View style={{ flex: 1 }}>
                   <Text style={text.strong}>{item.name}</Text>
                   {!!item.description && <Muted>{item.description}</Muted>}
@@ -99,6 +100,7 @@ export function InventoryModal({
 }
 
 const styles = StyleSheet.create({
+  photo: { width: 44, height: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.goldDim },
   sheet: { flex: 1, backgroundColor: colors.surface, padding: spacing.lg, gap: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   list: { gap: spacing.sm, paddingVertical: spacing.sm },

@@ -22,6 +22,8 @@ export type Ability = {
   status?: StatusType;
   /** Chance (0–100) de aplicar o status. */
   statusChance?: number;
+  /** Foto da habilidade (data URI pequena). */
+  photoUri?: string;
 };
 
 /** Habilidade criada pelo Mestre no Codex e oferecida a personagens. */
@@ -50,7 +52,22 @@ export type Item = {
   name: string;
   quantity: number;
   description: string;
+  /** Foto do item ou arma (data URI pequena). */
+  photoUri?: string;
 };
+
+/** Montaria criada pelo Mestre, com habilidades próprias. Dada pelo Mestre ou comprada numa loja. */
+export type Mount = {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  photoUri?: string;
+  abilities: Ability[];
+};
+
+/** Categoria de uma habilidade do personagem: da classe, geral ou de uma montaria. */
+export type AbilityCategory = 'classe' | 'geral' | 'montaria';
 
 /** Atributo personalizável (Força, Destreza...): o jogador define na criação; o Mestre ajusta ao subir de nível. */
 export type Attribute = {
@@ -77,6 +94,8 @@ export type Character = {
   codexId?: string;
   /** Classe do personagem no Codex atual. */
   classId?: string;
+  /** Montarias do Codex que o personagem tem. */
+  mountIds: string[];
   /** Codex dos quais já recebeu o inventário inicial (não recebe de novo ao sair e voltar). */
   startingItemsFrom?: string[];
   createdAt: number;
@@ -117,6 +136,9 @@ export type ShopItem = {
   name: string;
   description: string;
   price: number;
+  photoUri?: string;
+  /** Item que é uma montaria: comprar dá a montaria em vez de um item na bolsa. */
+  mountId?: string;
 };
 
 /** Local da campanha onde os personagens compram itens. */
@@ -147,7 +169,7 @@ export type Participant = {
 
 export type PendingAction = {
   characterId: string;
-  kind: 'fisico' | 'habilidade' | 'item';
+  kind: 'fisico' | 'habilidade' | 'item' | 'fuga';
   label: string;
   abilityId?: string;
   /** Valor do dado digitado pelo jogador ao atacar. */
@@ -275,6 +297,8 @@ export type Codex = {
   shops: Shop[];
   abilities: CodexAbility[];
   classes: CodexClass[];
+  /** Montarias criadas pelo Mestre. */
+  mounts: Mount[];
   /** Classe atribuída a quem entra no Codex. */
   startingClassId?: string;
   battles: Battle[];

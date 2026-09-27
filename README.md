@@ -54,11 +54,12 @@ Os dados ficam salvos no aparelho e são sincronizados em tempo real pelo Fireba
 - **Fichas completas** — nome, idade, raça (livre, porque cada mundo tem as suas) e foto tirada pela câmera ou escolhida da galeria.
 - **Vida, mana e estamina** com barras em pixel art que esvaziam conforme o valor.
 - **Atributos personalizáveis** — começa com Força, Agilidade e Inteligência, mas você pode criar os seus.
-- **Inventário** com quantidade e descrição de cada item.
+- **Inventário** com quantidade, descrição e foto de cada item ou arma.
 - **Ouro** para gastar nas lojas da campanha.
 - **Nível e XP** — a barra de experiência enche até a próxima subida de nível.
 - **Entrar em uma campanha** digitando o código curto do Codex.
-- **Habilidades oferecidas pelo Mestre** — o jogador aceita ou recusa cada oferta.
+- **Habilidades por categoria** — de classe, gerais (oferecidas pelo Mestre; o jogador aceita ou recusa) e de montaria.
+- **Montarias** dadas pelo Mestre ou compradas nas lojas, cada uma com habilidades próprias.
 - **Até 5 personagens** por jogador.
 
 ### 📜 Para o Mestre (Codex)
@@ -67,8 +68,9 @@ Os dados ficam salvos no aparelho e são sincronizados em tempo real pelo Fireba
 - **Bestiário pronto** com monstros pré-gerados, cada um com vida, armadura, habilidades e loot:
   Goblin Saqueador 👺, Lobo das Sombras 🐺, Esqueleto Guerreiro, Orc Berserker, Aranha Gigante, Troll da Ponte, Mímico e Dragão Vermelho Jovem.
 - **Monstros personalizados** com foto, habilidades próprias e itens que caem quando ele é derrotado.
-- **Lojas** (Loja de Armas, Loja Geral, Loja de Poções ou criadas do zero), com preço por item e visibilidade escolhida por personagem.
-- **Editor de habilidades** — mágicas (custam mana) ou físicas (custam estamina), com dano base em notação de dados (ex.: `2d6 + 3`) e chance de aplicar status.
+- **Lojas** (Loja de Armas, Loja Geral, Loja de Poções ou criadas do zero), com preço e foto por item, montarias à venda e visibilidade escolhida por personagem.
+- **Montarias** — aba própria para criar montarias com foto, descrição e habilidades, e escolher quem tem cada uma.
+- **Editor de habilidades** — mágicas (custam mana) ou físicas (custam estamina), com foto, dano base em notação de dados (ex.: `2d6 + 3`) e chance de aplicar status.
 - **Subida de nível guiada** — quando um personagem sobe de nível, o Mestre define as recompensas: mais vida, mana ou estamina, pontos em atributos, novos atributos, novas habilidades e uma anotação.
 
 ### ⚔️ Batalhas
@@ -77,6 +79,7 @@ Os dados ficam salvos no aparelho e são sincronizados em tempo real pelo Fireba
 - **Ordem de turnos por iniciativa** (d20 para cada personagem e cada monstro), com rodadas e indicação de quem está jogando.
 - **Ações do jogador:** ataque físico, usar habilidade, usar item, **Defender**, **Observar** (revela armadura e habilidades do monstro escolhido) e **Fugir**.
 - **Armadura:** o dado do ataque precisa ser maior ou igual à armadura do alvo. Se não for, o ataque erra na hora (o custo da habilidade é gasto mesmo assim). Habilidades sem dano, como cura, não dependem da armadura.
+- **Fugir:** o personagem rola o dado da fuga e o Mestre decide. Aceita, o personagem sai da batalha; recusada, o Mestre escolhe se ele leva dano, recebe um status ou só perde a vez.
 - **Defender:** o personagem rola o dado da defesa. No próximo ataque de monstro, o Mestre vê esse valor e decide quanto dano ele recebe (vale até o próximo turno do personagem).
 - **Dado + valor:** em todo ataque e defesa, quem joga escolhe o dado usado (d4 a d20) e digita o valor ao lado, e o Mestre vê os dois (ex.: `d20 → 15`).
 - **Rolagem de dados** d4, d6, d8, d10, d12 e d20 direto na tela, com o resultado registrado no log.
@@ -92,6 +95,8 @@ Os dados ficam salvos no aparelho e são sincronizados em tempo real pelo Fireba
 - **Cenários em pixel art** escolhidos pelo Mestre: planície, deserto, gelo, floresta e mar (de dia e à noite) e catacumbas.
 - **Balão de cada monstro** mostrando a habilidade que ele vai usar e sua condição (ex.: "Furioso").
 - **Efeitos visuais:** o alvo treme e pisca ao tomar dano ou ser curado, com o número flutuando ("−7", "+5", "Errou!"), o dado virtual gira antes de parar e o "Seu turno!" pulsa. As animações respeitam a opção "Remover animações" do aparelho.
+- **Habilidades na batalha** separadas em Classe, Geral e Montaria, sempre com o dado e o valor.
+- **Levantar personagens caídos:** a cura escolhida pelo Mestre pode levantar quem caiu, e o Mestre também pode levantar direto, escolhendo quanta vida o personagem recupera.
 - **Log de combate** colorido por tipo: dano, cura, status e dados.
 - **XP proporcional ao dano** no fim da batalha e **Espólios** com os itens de todos os monstros derrotados, pegos em turnos pelos personagens vivos.
 
@@ -113,7 +118,7 @@ Os dados ficam salvos no aparelho e são sincronizados em tempo real pelo Fireba
 | Divisão de XP | quem causou mais dano recebe o máximo e quem não causou dano recebe o mínimo. Quem morreu ou fugiu recebe o mínimo. |
 | Acertar um monstro | dado do ataque ≥ armadura do monstro |
 | Defender | rola um dado; o Mestre decide o dano do próximo ataque com base nesse valor |
-| Fugir | d20 ≥ 10 |
+| Fugir | rola um dado; o Mestre aceita (sai da batalha) ou recusa (dano, status ou só passa a vez) |
 | Monstros por batalha | até 4 |
 
 As regras ficam em [`pks-codex-app/src/lib/rules.ts`](pks-codex-app/src/lib/rules.ts) e o motor de batalha em [`pks-codex-app/src/lib/engine.ts`](pks-codex-app/src/lib/engine.ts).
@@ -241,7 +246,7 @@ npm test            # ou: scripts/check.ps1 (typecheck + testes)
 
 | Arquivo | Cobre |
 | --- | --- |
-| `tests/engine.test.js` | Iniciativa, turnos, vários monstros, armadura, defesa, custo de mana, status, fuga, espólios, XP, subida de nível, conversão de batalhas antigas e modo demonstração |
+| `tests/engine.test.js` | Iniciativa, turnos, vários monstros, armadura, defesa, fuga, custo de mana, status, habilidades de montaria, levantar caídos, espólios, XP, subida de nível, conversão de batalhas antigas e modo demonstração |
 | `tests/sync.test.js` | Detecção de mudanças e sincronização dos documentos |
 | `tests/pixel-shapes.test.js` | Desenho dos ícones em pixel art |
 

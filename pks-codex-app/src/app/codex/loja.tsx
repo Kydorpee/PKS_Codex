@@ -76,7 +76,7 @@ export default function EditShop() {
         </View>
       </View>
 
-      <ShopItemListEditor value={draft.items} onChange={(items) => set({ items })} />
+      <ShopItemListEditor value={draft.items} onChange={(items) => set({ items })} mounts={codex.mounts} />
 
       <SectionHeader title="Quem pode ver" />
       {players.length === 0 ? (

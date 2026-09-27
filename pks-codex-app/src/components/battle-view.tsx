@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BattleLog, DicePanel, MonsterPanel, ParticipantList, TurnOrder } from './battle';
 import { Pulse } from './battle-fx';
 import { LootPanel } from './loot-panel';
@@ -19,6 +19,8 @@ import {
   monsterAction,
   playerAction,
   resolveAction,
+  resolveFlee,
+  reviveCharacter,
   rollBattleDie,
   setMonsterDisplay,
   setTerrain,
@@ -27,10 +29,10 @@ import {
   type PlayerAction,
   type Result,
 } from '@/lib/engine';
-import { DICE, STATUS_INFO } from '@/lib/rules';
+import { abilityGroups, DICE, findAbility, STATUS_INFO, STATUS_TYPES } from '@/lib/rules';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
-import { costLabel, diceLabel, type Ability, type Battle, type Character, type Codex, type DiceRoll, type Foe } from '@/lib/types';
+import { costLabel, diceLabel, type Ability, type Battle, type Character, type Codex, type AbilityCategory, type DiceRoll, type Foe, type StatusType } from '@/lib/types';
 
 const toInt = (v: string) => Math.max(0, parseInt(v.replace(/\D/g, ''), 10) || 0);
 
@@ -121,10 +123,11 @@ function FoePicker({ codex, foes, value, onChange, label = '🎯 Alvo' }: { code
 }
 
 function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { viewer: Character }) {
-  const [menu, setMenu] = useState<'raiz' | 'atacar' | 'habilidade' | 'item' | 'observar' | 'defender'>('raiz');
+  const [menu, setMenu] = useState<'raiz' | 'atacar' | 'habilidade' | 'item' | 'observar' | 'defender' | 'fugir'>('raiz');
   const [sides, setSides] = useState(20);
   const [dice, setDice] = useState('');
   const [targetId, setTargetId] = useState<string>();
+  const [category, setCategory] = useState<AbilityCategory>();
   const turn = currentTurn(battle);
   const participant = battle.participants.find((p) => p.characterId === viewer.id);
 
@@ -172,6 +175,25 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
   const roll: DiceRoll = { sides, value: toInt(dice) };
   const rollOk = roll.value >= 1 && roll.value <= sides;
 
+  // Habilidades por categoria: classe, geral e montaria (só as que existem aparecem).
+  const groups = abilityGroups(viewer, codex);
+  const byCategory: Record<AbilityCategory, { ability: Ability; from?: string }[]> = {
+    classe: groups.classe.map((ability) => ({ ability })),
+    geral: groups.geral.map((ability) => ({ ability })),
+    montaria: groups.montaria.flatMap(({ mount, abilities }) => abilities.map((ability) => ({ ability, from: `${mount.emoji} ${mount.name}` }))),
+  };
+  const cats = (
+    [
+      { key: 'classe', label: '🛡️ Classe' },
+      { key: 'geral', label: '✨ Geral' },
+      { key: 'montaria', label: '🐎 Montaria' },
+    ] as const
+  )
+    .map((c) => ({ ...c, count: byCategory[c.key].length }))
+    .filter((c) => c.count > 0);
+  const shownCat = cats.find((c) => c.key === category)?.key ?? cats[0]?.key;
+  const shownList = shownCat ? byCategory[shownCat] : [];
+
   return (
     <Pulse active={menu === 'raiz'}>
       <Card style={styles.turnCard}>
@@ -186,7 +208,7 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
               title="👁️ Observar"
               onPress={() => (alive.length > 1 ? setMenu('observar') : act({ kind: 'observar', targetId: target?.monsterId }))}
             />
-            <Button variant="secondary" title="🏃 Fugir (d20 ≥ 10)" onPress={() => act({ kind: 'fugir' })} />
+            <Button variant="secondary" title="🏃 Fugir" onPress={() => setMenu('fugir')} />
           </View>
         )}
         {menu === 'observar' && (
@@ -200,6 +222,14 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
                 onPress={() => act({ kind: 'observar', targetId: f.monsterId })}
               />
             ))}
+            <Button variant="ghost" title="Voltar" onPress={() => setMenu('raiz')} />
+          </View>
+        )}
+        {menu === 'fugir' && (
+          <View style={styles.actions}>
+            <DiceInput label="🎲 Dado da fuga" sides={sides} onSides={setSides} value={dice} onValue={setDice} />
+            <Muted>Role o dado da fuga. O Mestre decide se você consegue escapar; se falhar, ele pode aplicar dano ou status.</Muted>
+            <Button title={`🏃 Tentar fugir${rollOk ? ` (${diceLabel(roll)})` : ''}`} disabled={!rollOk} onPress={() => act({ kind: 'fugir', roll })} />
             <Button variant="ghost" title="Voltar" onPress={() => setMenu('raiz')} />
           </View>
         )}
@@ -237,16 +267,23 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
         )}
         {menu === 'habilidade' && (
           <View style={styles.actions}>
-            {viewer.abilities.length === 0 && <Muted>Você ainda não tem habilidades.</Muted>}
-            {viewer.abilities.map((a) => {
+            {cats.length === 0 && <Muted>Você ainda não tem habilidades.</Muted>}
+            {cats.length > 1 && (
+              <View style={styles.wrap}>
+                {cats.map((c) => (
+                  <Chip key={c.key} label={`${c.label} (${c.count})`} active={shownCat === c.key} onPress={() => setCategory(c.key)} />
+                ))}
+              </View>
+            )}
+            {shownList.map(({ ability: a, from }) => {
               const pool = a.kind === 'magica' ? viewer.mana : viewer.stamina;
               return (
                 <Button
                   key={a.id}
                   variant="secondary"
                   disabled={pool < a.cost || !rollOk}
-                  icon={<CostIcon kind={a.kind} />}
-                  title={`${a.name} · ${costLabel(a)}${a.status ? ` · ${STATUS_INFO[a.status].emoji}` : ''}${isOffensive(a) ? '' : ' · sem alvo'}`}
+                  icon={a.photoUri ? <Image source={{ uri: a.photoUri }} style={styles.abilityPhoto} /> : <CostIcon kind={a.kind} />}
+                  title={`${from ? `${from} · ` : ''}${a.name} · ${costLabel(a)}${a.status ? ` · ${STATUS_INFO[a.status].emoji}` : ''}${isOffensive(a) ? '' : ' · sem alvo'}`}
                   onPress={() => act({ kind: 'habilidade', abilityId: a.id, roll, targetId: target?.monsterId })}
                 />
               );
@@ -388,7 +425,9 @@ function MasterPanel({ codex, battle, characters, run }: PanelProps) {
 
   return (
     <>
-      {battle.pending ? (
+      {battle.pending?.kind === 'fuga' ? (
+        <FleeCard key={`${battle.round}:${battle.turnIndex}`} codex={codex} battle={battle} characters={characters} run={run} />
+      ) : battle.pending ? (
         <PendingCard key={`${battle.round}:${battle.turnIndex}`} codex={codex} battle={battle} characters={characters} run={run} />
       ) : foeOf(battle, turn) ? (
         // A chave zera as escolhas a cada turno de monstro.
@@ -408,6 +447,8 @@ function MasterPanel({ codex, battle, characters, run }: PanelProps) {
         </Card>
       )}
 
+      <ReviveCard codex={codex} battle={battle} characters={characters} run={run} />
+
       <BalloonCard codex={codex} battle={battle} characters={characters} run={run} />
 
       <Card>
@@ -420,11 +461,56 @@ function MasterPanel({ codex, battle, characters, run }: PanelProps) {
   );
 }
 
+/** O Mestre decide a fuga: aceita (sai da batalha) ou recusa, com dano, status ou só passando a vez. */
+function FleeCard({ codex, battle, characters, run }: PanelProps) {
+  const pending = battle.pending!;
+  const who = characters.find((c) => c.id === pending.characterId);
+  const name = who?.name ?? 'Personagem';
+  const [damage, setDamage] = useState('');
+  const [status, setStatus] = useState<StatusType>();
+  const decide = (res: Parameters<typeof resolveFlee>[3]) => run((d) => resolveFlee(d, codex.id, battle.id, res));
+  const hurt = toInt(damage);
+  const refuseLabel = [hurt ? `${hurt} de dano` : '', status ? STATUS_INFO[status].label.toLowerCase() : ''].filter(Boolean).join(' + ');
+
+  return (
+    <Card style={styles.turnCard}>
+      <Text style={text.strong}>🏃 {name} tenta fugir</Text>
+      <Text style={text.accentStrong}>
+        🎲 Dado da fuga: {pending.diceSides ? `d${pending.diceSides} → ` : ''}
+        {pending.dice}
+      </Text>
+      <Button title="✅ Aceitar fuga (sai da batalha)" onPress={() => decide({ accepted: true })} />
+
+      <View style={[styles.chance, { gap: spacing.sm }]}>
+        <Text style={text.strong}>❌ Recusar a fuga</Text>
+        <Muted>Se quiser, aplique dano e/ou um status. Sem nada, {name} só perde a vez.</Muted>
+        <View style={{ gap: 2 }}>
+          <Muted>💥 Dano (opcional)</Muted>
+          <NumberInput value={damage} onChange={setDamage} placeholder="0" />
+        </View>
+        <Muted>Status (opcional)</Muted>
+        <View style={styles.wrap}>
+          <Chip label="Nenhum" active={!status} onPress={() => setStatus(undefined)} />
+          {STATUS_TYPES.map((s) => (
+            <Chip key={s} label={`${STATUS_INFO[s].emoji} ${STATUS_INFO[s].label}`} active={status === s} onPress={() => setStatus(s)} />
+          ))}
+        </View>
+        <Button
+          variant="secondary"
+          title={refuseLabel ? `❌ Recusar: ${refuseLabel}` : '❌ Recusar (só passa a vez)'}
+          onPress={() => decide({ accepted: false, damage: hurt, status })}
+        />
+      </View>
+    </Card>
+  );
+}
+
 /** O Mestre resolve a ação do jogador: dano no monstro, cura ou sem efeito. */
 function PendingCard({ codex, battle, characters, run }: PanelProps) {
   const pending = battle.pending!;
-  const alive = aliveCharacters(battle, characters);
   const foes = aliveFoes(battle);
+  // Na cura, entram também os caídos: curar levanta.
+  const healable = [...aliveCharacters(battle, characters), ...fallenCharacters(battle, characters)];
   const [amount, setAmount] = useState('');
   const [targetId, setTargetId] = useState(pending.targetId);
   // Cura: aberta pelo botão "Curar"; alvos (personagens e/ou monstros) e quanto curar.
@@ -433,7 +519,7 @@ function PendingCard({ codex, battle, characters, run }: PanelProps) {
   const [healAmount, setHealAmount] = useState('');
 
   const pendingCharacter = characters.find((c) => c.id === pending.characterId);
-  const pendingAbility = pendingCharacter?.abilities.find((a) => a.id === pending.abilityId);
+  const pendingAbility = findAbility(pendingCharacter, codex, pending.abilityId);
   const target = foes.find((f) => f.monsterId === targetId) ?? foes[0];
   const armor = codex.monsters.find((m) => m.id === pending.targetId)?.armor;
 
@@ -459,8 +545,13 @@ function PendingCard({ codex, battle, characters, run }: PanelProps) {
         <View style={styles.actions}>
           <Text style={text.strong}>💚 Quem deve ser curado?</Text>
           <View style={styles.wrap}>
-            {alive.map((c) => (
-              <Chip key={c.id} label={`${c.name} ❤️${c.hp}/${c.maxHp}`} active={healIds.includes(c.id)} onPress={() => toggleHeal(c.id)} />
+            {healable.map((c) => (
+              <Chip
+                key={c.id}
+                label={c.hp <= 0 ? `☠️ ${c.name} (levantar)` : `${c.name} ❤️${c.hp}/${c.maxHp}`}
+                active={healIds.includes(c.id)}
+                onPress={() => toggleHeal(c.id)}
+              />
             ))}
             {foes.map((f) => (
               <Chip
@@ -515,6 +606,7 @@ function FoeTurnCard({ codex, battle, characters, run }: PanelProps) {
   const roll: DiceRoll = { sides, value: toInt(dice) };
   const rollOk = roll.value >= 1 && roll.value <= sides;
 
+
   return (
     <Card style={styles.turnCard}>
       <Text style={text.accentStrong}>👹 Turno de {monster?.name ?? 'monstro'}</Text>
@@ -560,6 +652,46 @@ function FoeTurnCard({ codex, battle, characters, run }: PanelProps) {
         title={targetId ? '💥 Aplicar dano' : `Executar turno de ${monster?.name ?? 'monstro'}`}
         disabled={!!targetId && (!rollOk || !amount)}
         onPress={() => run((d) => monsterAction(d, codex.id, battle.id, { abilityId, targetId, roll: targetId ? roll : undefined, damage: toInt(amount) }))}
+      />
+    </Card>
+  );
+}
+
+/** Personagens caídos (vida 0) que não fugiram: podem ser curados/levantados. */
+const fallenCharacters = (battle: Battle, characters: Character[]) =>
+  battle.participants
+    .filter((p) => !p.fled)
+    .map((p) => characters.find((c) => c.id === p.characterId))
+    .filter((c): c is Character => !!c && c.hp <= 0);
+
+/** O Mestre levanta um personagem caído e escolhe quanta vida ele recupera. */
+function ReviveCard({ codex, battle, characters, run }: PanelProps) {
+  const fallen = fallenCharacters(battle, characters);
+  const [chosen, setChosen] = useState<string>();
+  const [hp, setHp] = useState('');
+  if (fallen.length === 0) return null;
+  const who = fallen.find((c) => c.id === chosen) ?? fallen[0];
+  const amount = Math.min(toInt(hp), who.maxHp);
+  return (
+    <Card>
+      <Text style={text.strong}>✨ Levantar personagem</Text>
+      <Muted>Escolha quem levantar e quanta vida recupera. Também dá para levantar curando, quando alguém usa uma cura.</Muted>
+      <View style={styles.wrap}>
+        {fallen.map((c) => (
+          <Chip key={c.id} label={`☠️ ${c.name}`} active={who.id === c.id} onPress={() => setChosen(c.id)} />
+        ))}
+      </View>
+      <View style={{ gap: 2 }}>
+        <Muted>❤️ Vida que {who.name} recupera (máx. {who.maxHp})</Muted>
+        <NumberInput value={hp} onChange={setHp} placeholder={`1–${who.maxHp}`} />
+      </View>
+      <Button
+        title={`✨ Levantar ${who.name}${amount ? ` com ${amount} de vida` : ''}`}
+        disabled={!amount}
+        onPress={() => {
+          run((d) => reviveCharacter(d, codex.id, battle.id, who.id, amount));
+          setHp('');
+        }}
       />
     </Card>
   );
@@ -698,6 +830,7 @@ const styles = StyleSheet.create({
     minWidth: 96,
     alignItems: 'center',
   },
+  abilityPhoto: { width: 24, height: 24, borderRadius: 4 },
   diePickText: { color: colors.onPrimary, fontSize: 16, fontWeight: '800' },
   input: {
     backgroundColor: colors.surfaceRaised,

@@ -1,9 +1,9 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, StyleSheet, Text, View } from 'react-native';
 import { CoinIcon, GoldAmount } from '@/components/monster-stats';
 import { Button, Card, Muted, Screen, text } from '@/components/ui';
 import { useStore } from '@/lib/store';
-import { spacing } from '@/lib/theme';
+import { colors, radius, spacing } from '@/lib/theme';
 
 export default function ShopForCharacter() {
   const { characterId, shopId } = useLocalSearchParams<{ characterId: string; shopId: string }>();
@@ -38,14 +38,23 @@ export default function ShopForCharacter() {
       {shop.items.length === 0 && <Muted>Nada à venda no momento.</Muted>}
       {shop.items.map((item) => {
         const affordable = character.gold >= item.price;
+        const mount = item.mountId ? codex.mounts.find((m) => m.id === item.mountId) : undefined;
+        const owned = !!mount && character.mountIds.includes(mount.id);
+        if (item.mountId && !mount) return null;
         return (
           <Card key={item.id}>
             <View style={styles.row}>
+              {item.photoUri ? (
+                <Image source={{ uri: item.photoUri }} style={styles.photo} />
+              ) : mount ? (
+                <Text style={{ fontSize: 32 }}>{mount.emoji}</Text>
+              ) : null}
               <View style={{ flex: 1 }}>
                 <Text style={text.strong}>{item.name}</Text>
+                {mount && <Muted>🐎 Montaria · {mount.abilities.length} habilidade(s){owned ? ' · você já tem' : ''}</Muted>}
                 {!!item.description && <Muted>{item.description}</Muted>}
               </View>
-              <Button small icon={<CoinIcon />} title={String(item.price)} disabled={!affordable} onPress={() => buy(item.id)} />
+              <Button small icon={<CoinIcon />} title={String(item.price)} disabled={!affordable || owned} onPress={() => buy(item.id)} />
             </View>
           </Card>
         );
@@ -56,4 +65,5 @@ export default function ShopForCharacter() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  photo: { width: 52, height: 52, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.goldDim },
 });

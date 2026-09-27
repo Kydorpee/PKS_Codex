@@ -11,6 +11,7 @@ import { LevelUpBlock } from '@/components/level-up-block';
 import { openLoots } from '@/components/loot-panel';
 import { Avatar, Button, Card, Muted, Screen, SectionHeader, Stat, TabBar, text } from '@/components/ui';
 import { currentLooter, currentTurn, foeNames } from '@/lib/engine';
+import { abilityGroups } from '@/lib/rules';
 import { useStore } from '@/lib/store';
 import { WIDGET_CHARACTER_KEY } from '@/lib/storage-keys';
 import { colors, radius, spacing } from '@/lib/theme';
@@ -48,7 +49,7 @@ export default function CharacterSheet() {
   const tab = inBattle ? (chosenTab ?? 'batalha') : chosenTab === 'batalha' ? 'ficha' : (chosenTab ?? 'ficha');
   const klass = codex?.classes.find((k) => k.id === character.classId);
   const classOffers = codex?.classes.filter((k) => k.offeredTo.includes(character.id)) ?? [];
-  const classAbilityIds = new Set(codex?.abilities.filter((a) => a.classId && a.classId === character.classId).map((a) => a.id));
+  const groups = abilityGroups(character, codex);
   const pendingOffers = classOffers.length + offers.length;
   const battleBadge =
     battle?.status === 'vitoria' ? '🏆' : battle && currentTurn(battle) === character.id && !battle.pending ? 'Sua vez!' : undefined;
@@ -181,16 +182,43 @@ export default function CharacterSheet() {
         </>
       )}
 
-      <SectionHeader title="Habilidades" />
-      {character.abilities.length === 0 ? (
-        <Muted>Nenhuma habilidade ainda. Elas são liberadas pelo Mestre do Codex.</Muted>
+      <SectionHeader title={klass ? `Classe · ${klass.emoji} ${klass.name}` : 'Classe'} />
+      {groups.classe.length === 0 ? (
+        <Muted>{klass ? 'Esta classe ainda não tem habilidades.' : 'Sem classe, sem habilidades de classe.'}</Muted>
       ) : (
-        character.abilities.map((a) => (
-          <AbilityCard key={a.id} ability={a}>
-            {classAbilityIds.has(a.id) && klass ? <Muted>Habilidade de classe: {klass.emoji} {klass.name}</Muted> : null}
-          </AbilityCard>
-        ))
+        groups.classe.map((a) => <AbilityCard key={a.id} ability={a} />)
       )}
+
+      <SectionHeader title="Gerais" />
+      {groups.geral.length === 0 ? (
+        <Muted>Nenhuma habilidade geral ainda. Elas são liberadas pelo Mestre do Codex.</Muted>
+      ) : (
+        groups.geral.map((a) => <AbilityCard key={a.id} ability={a} />)
+      )}
+
+      <SectionHeader title="Montarias" />
+      {groups.montaria.length === 0 && <Muted>Nenhuma montaria. O Mestre pode dar uma, ou procure nas lojas.</Muted>}
+      {groups.montaria.map(({ mount, abilities }) => (
+        <View key={mount.id} style={{ gap: spacing.sm }}>
+          <Card>
+            <View style={styles.shopRow}>
+              <Avatar uri={mount.photoUri} emoji={mount.emoji} name={mount.name} size={48} />
+              <View style={{ flex: 1 }}>
+                <Text style={text.strong}>{mount.name}</Text>
+                {!!mount.description && <Muted>{mount.description}</Muted>}
+                <Muted>{abilities.length} habilidade(s)</Muted>
+              </View>
+            </View>
+          </Card>
+          {abilities.map((a) => (
+            <AbilityCard key={a.id} ability={a}>
+              <Muted>
+                {mount.emoji} Habilidade de {mount.name}
+              </Muted>
+            </AbilityCard>
+          ))}
+        </View>
+      ))}
 
       </Screen>
     );

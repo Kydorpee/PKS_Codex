@@ -23,7 +23,7 @@ export default function CodexDashboard() {
   const { codexes, characters, updateCharacter, updateCodex, removeFromCodex, deleteCodex, setStartingClass } = useStore();
   const codex = codexes.find((c) => c.id === id);
   // Aba escolhida; sem escolha, abre nas batalhas quando houver alguma.
-  const [chosenTab, setChosenTab] = useState<'codex' | 'habilidades' | 'batalhas'>();
+  const [chosenTab, setChosenTab] = useState<'codex' | 'habilidades' | 'montarias' | 'batalhas'>();
   const [selectedBattle, setSelectedBattle] = useState<string>();
   // Batalha nova (criada agora) passa a ser a selecionada.
   const [knownBattles, setKnownBattles] = useState(() => codex?.battles.map((b) => b.id) ?? []);
@@ -126,10 +126,47 @@ export default function CodexDashboard() {
       tabs={[
         { key: 'codex', label: '📜 Codex', badge: pendingLevelUps.length ? `🆙 ${pendingLevelUps.length}` : undefined },
         { key: 'habilidades', label: '✨ Habilidades' },
+        { key: 'montarias', label: '🐎 Montarias' },
         { key: 'batalhas', label: `⚔️ Batalhas${battles.length ? ` (${battles.length})` : ''}`, badge: waiting ? 'Sua vez!' : undefined },
       ]}
     />
   );
+
+  if (tab === 'montarias') {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: codex.name }} />
+        {tabs}
+        <SectionHeader
+          title="Montarias"
+          action={
+            <Button small variant="secondary" title="+ Nova" onPress={() => router.push({ pathname: '/codex/montaria', params: { codexId: codex.id } })} />
+          }
+        />
+        <Muted>Cada montaria tem habilidades próprias. Dê a montaria aos personagens ou venda numa loja.</Muted>
+        {codex.mounts.length === 0 && <Muted>Nenhuma montaria ainda. Crie um cavalo, um lobo gigante, um grifo...</Muted>}
+        {codex.mounts.map((m) => {
+          const owners = players.filter((p) => p.mountIds.includes(m.id));
+          const shops = codex.shops.filter((s) => s.items.some((i) => i.mountId === m.id));
+          return (
+            <Card key={m.id} onPress={() => router.push({ pathname: '/codex/montaria', params: { codexId: codex.id, mountId: m.id } })}>
+              <View style={styles.row}>
+                <Avatar uri={m.photoUri} emoji={m.emoji} name={m.name} size={48} />
+                <View style={{ flex: 1 }}>
+                  <Text style={text.strong}>{m.name}</Text>
+                  <Muted>
+                    {m.abilities.length} habilidade(s) · {owners.length} personagem(ns)
+                    {shops.length ? ` · à venda em ${shops.map((s) => s.name).join(', ')}` : ''}
+                  </Muted>
+                  {owners.length > 0 && <Muted>{owners.map((o) => o.name).join(', ')}</Muted>}
+                </View>
+              </View>
+            </Card>
+          );
+        })}
+      </Screen>
+    );
+  }
 
   if (tab === 'habilidades') {
     const general = codex.abilities.filter((a) => !a.classId);

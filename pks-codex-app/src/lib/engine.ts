@@ -3,7 +3,7 @@
  * trabalham numa cópia e devolvem os dados novos ou uma mensagem de erro.
  */
 import { newId } from './ids';
-import { DICE, STATUS_INFO, addStatus, addToInventory, gainXp, rollDie, splitXp } from './rules';
+import { DICE, STATUS_INFO, addStatus, addToInventory, findAbility, gainXp, rollDie, splitXp } from './rules';
 import {
   MAX_FOES,
   diceLabel,
@@ -312,7 +312,7 @@ function checkRoll(roll: DiceRoll | undefined, what = 'do dado') {
 export type PlayerAction =
   | { kind: 'observar'; targetId?: string }
   | { kind: 'defender'; roll: DiceRoll }
-  | { kind: 'fugir' }
+  | { kind: 'fugir'; roll: DiceRoll }
   | { kind: 'fisico'; roll: DiceRoll; targetId?: string }
   | { kind: 'habilidade'; abilityId: string; roll: DiceRoll; targetId?: string }
   | { kind: 'item'; itemId: string };
@@ -337,7 +337,7 @@ export const playerAction = (data: Data, codexId: string, battleId: string, char
     if (battle.pending) fail('Aguarde o Mestre resolver a ação.');
     const c = ctx.character(characterId) ?? fail('Personagem não encontrado.');
     const p = battle.participants.find((x) => x.characterId === characterId)!;
-    if (action.kind === 'fisico' || action.kind === 'habilidade' || action.kind === 'defender') checkRoll(action.roll);
+    if (action.kind === 'fisico' || action.kind === 'habilidade' || action.kind === 'defender' || action.kind === 'fugir') checkRoll(action.roll);
 
     /** O dado do ataque precisa ser maior ou igual à armadura do alvo; se não for, erra na hora. */
     const attack = (foe: Foe, label: string, roll: DiceRoll, abilityId?: string) => {
@@ -370,19 +370,18 @@ export const playerAction = (data: Data, codexId: string, battleId: string, char
         p.defense = { sides: action.roll.sides, value: action.roll.value };
         ctx.log(`🛡️ ${c.name} se defende (🎲 ${diceLabel(action.roll)}).`, 'dado');
         return advance(ctx);
-      case 'fugir': {
-        const roll = rollDie(20);
-        p.fled = roll >= 10;
-        ctx.log(`🏃 ${c.name} tenta fugir (d20: ${roll}) — ${p.fled ? 'conseguiu escapar!' : 'não conseguiu.'}`, 'dado');
-        return advance(ctx);
-      }
+      case 'fugir':
+        // O Mestre decide se a fuga dá certo (resolveFlee).
+        battle.pending = { characterId, kind: 'fuga', label: 'Tentativa de fuga', dice: action.roll.value, diceSides: action.roll.sides };
+        ctx.log(`🏃 ${c.name} tenta fugir (🎲 ${diceLabel(action.roll)}).`, 'dado');
+        return;
       case 'fisico': {
         const foe = targetFoe(battle, action.targetId);
         ctx.log(`⚔️ ${c.name} desfere um golpe físico em ${ctx.monster(foe.monsterId).name}.`);
         return attack(foe, 'Golpe físico', action.roll);
       }
       case 'habilidade': {
-        const a = c.abilities.find((x) => x.id === action.abilityId) ?? fail('Habilidade não encontrada.');
+        const a = findAbility(c, ctx.codex, action.abilityId) ?? fail('Habilidade não encontrada.');
         const pool = a.kind === 'magica' ? 'mana' : 'stamina';
         if (c[pool] < a.cost) fail(`${a.kind === 'magica' ? 'Mana' : 'Estamina'} insuficiente.`);
         const foe = isOffensive(a) ? targetFoe(battle, action.targetId) : undefined;
@@ -422,6 +421,7 @@ export const resolveAction = (data: Data, codexId: string, battleId: string, res
     const { battle } = ctx;
     requireActive(battle);
     const pending = battle.pending ?? fail('Nenhuma ação para resolver.');
+    if (pending.kind === 'fuga') fail('Decida se a fuga foi bem-sucedida.');
     const c = ctx.character(pending.characterId);
     const name = c?.name ?? 'Personagem';
 
@@ -434,7 +434,7 @@ export const resolveAction = (data: Data, codexId: string, battleId: string, res
       const p = battle.participants.find((x) => x.characterId === pending.characterId);
       if (p) p.damageDealt += dealt;
       ctx.log(`💥 ${pending.label} de ${name} causa ${dealt} de dano em ${m.name}.`, 'dano');
-      const ability = c?.abilities.find((a) => a.id === pending.abilityId);
+      const ability = findAbility(c, ctx.codex, pending.abilityId);
       battle.pending = undefined;
       if (foe.hp <= 0) {
         if (foeDown(ctx, foe)) return;
@@ -457,17 +457,71 @@ export const resolveAction = (data: Data, codexId: string, battleId: string, res
           continue;
         }
         const target = ctx.character(targetId) ?? fail('Alvo não encontrado.');
-        if (isOut(battle, target)) fail(`${target.name} não está mais na batalha.`);
-        const healed = Math.min(res.amount, target.maxHp - target.hp);
-        target.hp += healed;
+        const tp = battle.participants.find((x) => x.characterId === targetId);
+        if (!tp || tp.fled) fail(`${target.name} não está mais na batalha.`);
+        // Curar quem caiu o levanta de volta à batalha.
+        const fallen = target.hp <= 0;
+        const healed = Math.min(res.amount, target.maxHp - Math.max(0, target.hp));
+        target.hp = Math.max(0, target.hp) + healed;
+        if (fallen) target.statuses = [];
         ctx.hit({ targetId, kind: 'cura', amount: healed });
-        ctx.log(`💚 ${pending.label} de ${name} cura ${healed} de vida de ${target.name}.`, 'cura');
+        ctx.log(
+          fallen
+            ? `✨ ${pending.label} de ${name} levanta ${target.name} com ${healed} de vida!`
+            : `💚 ${pending.label} de ${name} cura ${healed} de vida de ${target.name}.`,
+          'cura',
+        );
       }
     } else {
       ctx.log(`${pending.label} de ${name} não teve efeito.`);
     }
 
     battle.pending = undefined;
+    advance(ctx);
+  });
+
+/**
+ * Na fuga recusada, o Mestre pode causar dano e/ou aplicar um status no personagem;
+ * sem nenhum dos dois, ele apenas passa a vez.
+ */
+export type FleeResolution = { accepted: true } | { accepted: false; damage?: number; status?: StatusType };
+
+/** O Mestre decide a tentativa de fuga: aceita (o personagem sai da batalha) ou recusa. */
+export const resolveFlee = (data: Data, codexId: string, battleId: string, res: FleeResolution) =>
+  withBattle(data, codexId, battleId, (ctx) => {
+    const { battle } = ctx;
+    requireActive(battle);
+    const pending = battle.pending ?? fail('Nenhuma ação para resolver.');
+    if (pending.kind !== 'fuga') fail('Não há tentativa de fuga para decidir.');
+    const c = ctx.character(pending.characterId) ?? fail('Personagem não encontrado.');
+    const p = battle.participants.find((x) => x.characterId === c.id)!;
+    battle.pending = undefined;
+
+    if (res.accepted) {
+      p.fled = true;
+      delete p.defense;
+      c.statuses = [];
+      ctx.log(`🏃 ${c.name} conseguiu fugir e saiu da batalha.`, 'cura');
+      return advance(ctx);
+    }
+
+    const damage = Math.max(0, res.damage ?? 0);
+    const parts: string[] = [];
+    if (damage > 0) {
+      c.hp = Math.max(0, c.hp - damage);
+      ctx.hit({ targetId: c.id, kind: 'dano', amount: damage });
+      parts.push(`sofre ${damage} de dano`);
+    }
+    if (res.status && c.hp > 0) {
+      c.statuses = addStatus(c.statuses, res.status);
+      parts.push(`fica ${STATUS_INFO[res.status].condition}`);
+    }
+    ctx.log(
+      `🚫 A fuga de ${c.name} falhou${parts.length ? `: ${parts.join(' e ')}` : ' e perde a vez'}.`,
+      damage > 0 ? 'dano' : res.status ? 'status' : 'info',
+      res.status && !damage ? res.status : undefined,
+    );
+    if (c.hp <= 0) ctx.log(`☠️ ${c.name} caiu em batalha.`, 'dano');
     advance(ctx);
   });
 
@@ -516,6 +570,23 @@ export const monsterAction = (
       ctx.log(`👹 ${monster.name} usa ${ability?.name ?? 'seu turno'}.`);
     }
     advance(ctx);
+  });
+
+/** O Mestre levanta um personagem caído na batalha, com a vida que escolher (a qualquer momento). */
+export const reviveCharacter = (data: Data, codexId: string, battleId: string, characterId: string, hp: number) =>
+  withBattle(data, codexId, battleId, (ctx) => {
+    const { battle } = ctx;
+    requireActive(battle);
+    const c = ctx.character(characterId) ?? fail('Personagem não encontrado.');
+    const p = battle.participants.find((x) => x.characterId === characterId);
+    if (!p) fail(`${c.name} não participa desta batalha.`);
+    if (p!.fled) fail(`${c.name} fugiu da batalha.`);
+    if (c.hp > 0) fail(`${c.name} não está caído.`);
+    if (!(hp >= 1)) fail('Digite quanta vida ele recupera.');
+    c.hp = Math.min(hp, c.maxHp);
+    c.statuses = [];
+    ctx.hit({ targetId: c.id, kind: 'cura', amount: c.hp });
+    ctx.log(`✨ O Mestre levantou ${c.name} com ${c.hp} de vida!`, 'cura');
   });
 
 /** Balão de um monstro: habilidade exibida e condição escrita pelo Mestre. */
