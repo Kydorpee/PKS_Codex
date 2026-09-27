@@ -8,15 +8,15 @@ import { LevelUpBlock } from '@/components/level-up-block';
 import { openLoots } from '@/components/loot-panel';
 import { CoinIcon, CostIcon, GoldAmount, IconStat, MonsterStats, StarIcon } from '@/components/monster-stats';
 import { Avatar, Button, Card, Muted, Screen, SectionHeader, TabBar, text } from '@/components/ui';
-import { currentLooter, currentTurn } from '@/lib/engine';
+import { currentLooter, currentTurn, foeNames, foeOf } from '@/lib/engine';
 import { SHOP_PRESETS } from '@/lib/presets';
 import { startingClassOf } from '@/lib/rules';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
-import { MONSTER_TURN, type Battle } from '@/lib/types';
+import type { Battle } from '@/lib/types';
 
 /** A batalha espera o Mestre: turno do monstro, ação de jogador para resolver ou XP da vitória. */
-const needsMaster = (b: Battle) => (b.status === 'vitoria' && !b.xpAwarded) || (b.status === 'ativa' && (!!b.pending || currentTurn(b) === MONSTER_TURN));
+const needsMaster = (b: Battle) => (b.status === 'vitoria' && !b.xpAwarded) || (b.status === 'ativa' && (!!b.pending || !!foeOf(b, currentTurn(b))));
 
 export default function CodexDashboard() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -211,7 +211,7 @@ export default function CodexDashboard() {
         {battles.length > 1 && (
           <View style={styles.inline}>
             {battles.map((b) => {
-              const m = codex.monsters.find((x) => x.id === b.monsterId);
+              const m = codex.monsters.find((x) => x.id === b.foes[0]?.monsterId);
               const active = b.id === shown?.id;
               return (
                 <Pressable
@@ -223,7 +223,7 @@ export default function CodexDashboard() {
                 >
                   <Text style={styles.battleChipText}>
                     {needsMaster(b) ? '❗ ' : ''}
-                    {m?.emoji ?? '⚔️'} {m?.name ?? 'Monstro'}
+                    {m?.emoji ?? '⚔️'} {foeNames(b, codex.monsters)}
                   </Text>
                 </Pressable>
               );
@@ -265,15 +265,17 @@ export default function CodexDashboard() {
       />
       {battles.length === 0 && <Muted>Nenhuma batalha em andamento.</Muted>}
       {battles.map((b) => {
-        const m = codex.monsters.find((x) => x.id === b.monsterId);
+        const m = codex.monsters.find((x) => x.id === b.foes[0]?.monsterId);
+        const hp = b.foes.reduce((n, f) => n + f.hp, 0);
+        const maxHp = b.foes.reduce((n, f) => n + f.maxHp, 0);
         return (
           <Card key={b.id} style={styles.highlight} onPress={() => openBattle(b.id)}>
             <View style={styles.row}>
               <Avatar uri={m?.photoUri} emoji={m?.emoji} name={m?.name} size={44} />
               <View style={{ flex: 1 }}>
-                <Text style={text.strong}>⚔️ {m?.name ?? 'Monstro'}</Text>
+                <Text style={text.strong}>⚔️ {foeNames(b, codex.monsters)}</Text>
                 <Muted>
-                  {b.status === 'vitoria' ? '🏆 Vitória — distribuir XP' : `Rodada ${b.round} · ❤️ ${b.monsterHp}/${b.monsterMaxHp}`} ·{' '}
+                  {b.status === 'vitoria' ? '🏆 Vitória — distribuir XP' : `Rodada ${b.round} · ❤️ ${hp}/${maxHp}`} ·{' '}
                   {b.participants.length} participante(s)
                 </Muted>
               </View>
@@ -371,14 +373,13 @@ export default function CodexDashboard() {
         ))}
       </View>
       {openLoots(codex).map((b) => {
-        const m = codex.monsters.find((x) => x.id === b.monsterId);
         const looter = characters.find((c) => c.id === currentLooter(b));
         return (
           <Card key={b.id} onPress={() => router.push({ pathname: '/espolios', params: { codexId: codex.id, battleId: b.id } })}>
             <View style={styles.row}>
               <Text style={{ fontSize: 28 }}>💰</Text>
               <View style={{ flex: 1 }}>
-                <Text style={text.strong}>Espólios · {m?.name ?? 'monstro'}</Text>
+                <Text style={text.strong}>Espólios · {foeNames(b, codex.monsters)}</Text>
                 <Muted>
                   Gerado pelo sistema · vez de {looter?.name ?? '?'} · {b.loot!.items.reduce((n, i) => n + i.quantity, 0)} item(ns)
                 </Muted>

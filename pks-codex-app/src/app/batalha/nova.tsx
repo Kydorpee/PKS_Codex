@@ -7,35 +7,37 @@ import { Avatar, Button, CheckRow, Muted, Paper, Screen, SectionHeader, text } f
 import { startBattle } from '@/lib/engine';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
-import type { Terrain } from '@/lib/types';
+import { MAX_FOES, type Terrain } from '@/lib/types';
 
 export default function NewBattle() {
   const params = useLocalSearchParams<{ codexId: string; monsterId?: string }>();
   const { codexes, characters, act } = useStore();
   const codex = codexes.find((c) => c.id === params.codexId);
 
-  const [monsterId, setMonsterId] = useState(params.monsterId);
+  const [monsterIds, setMonsterIds] = useState<string[]>(params.monsterId ? [params.monsterId] : []);
   const [terrain, setTerrain] = useState<Terrain>('planicie');
   const [selected, setSelected] = useState<string[]>([]);
 
   if (!codex) return null;
 
   const active = codex.battles.filter((b) => b.status === 'ativa');
-  const busyMonsters = new Set(active.map((b) => b.monsterId));
+  const busyMonsters = new Set(active.flatMap((b) => b.foes.map((f) => f.monsterId)));
   const busyCharacters = new Set(active.flatMap((b) => b.participants.map((p) => p.characterId)));
   const monsters = codex.monsters.filter((m) => !m.defeated && !busyMonsters.has(m.id));
   const players = characters.filter((c) => c.codexId === codex.id);
 
   const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const toggleMonster = (id: string) =>
+    setMonsterIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < MAX_FOES ? [...ids, id] : ids));
 
   const start = () => {
-    if (!monsterId) {
-      Alert.alert('Escolha um monstro');
+    if (monsterIds.length === 0) {
+      Alert.alert('Escolha pelo menos um monstro');
       return;
     }
     let battleId: string | undefined;
     const error = act((data) => {
-      const result = startBattle(data, codex.id, monsterId, selected, terrain);
+      const result = startBattle(data, codex.id, monsterIds, selected, terrain);
       battleId = result.battleId;
       return result;
     });
@@ -51,25 +53,33 @@ export default function NewBattle() {
     <Screen>
       <Stack.Screen options={{ title: 'Nova batalha' }} />
 
-      <SectionHeader title="Monstro" />
+      <SectionHeader title={`Monstros (${monsterIds.length}/${MAX_FOES})`} />
       {monsters.length === 0 && <Muted>Nenhum monstro disponível. Adicione monstros ao Codex.</Muted>}
-      {monsters.map((m) => (
-        <Pressable
-          key={m.id}
-          accessibilityRole="radio"
-          accessibilityState={{ selected: monsterId === m.id }}
-          onPress={() => setMonsterId(m.id)}
-          style={[styles.option, monsterId === m.id && styles.optionActive]}
-        >
-          <Avatar uri={m.photoUri} emoji={m.emoji} name={m.name} size={44} />
-          <View style={{ flex: 1 }}>
-            <Paper>
-              <Text style={text.strong}>{m.name}</Text>
-              <MonsterStats hitPoints={m.hitPoints} armor={m.armor} />
-            </Paper>
-          </View>
-        </Pressable>
-      ))}
+      {monsters.length > 1 && <Muted>Escolha até {MAX_FOES} monstros: cada um tem vida, turno e iniciativa próprios.</Muted>}
+      {monsters.map((m) => {
+        const chosen = monsterIds.includes(m.id);
+        const full = !chosen && monsterIds.length >= MAX_FOES;
+        return (
+          <Pressable
+            key={m.id}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: chosen, disabled: full }}
+            onPress={() => toggleMonster(m.id)}
+            style={[styles.option, chosen && styles.optionActive, full && { opacity: 0.5 }]}
+          >
+            <Avatar uri={m.photoUri} emoji={m.emoji} name={m.name} size={44} />
+            <View style={{ flex: 1 }}>
+              <Paper>
+                <Text style={text.strong}>
+                  {chosen ? '✓ ' : ''}
+                  {m.name}
+                </Text>
+                <MonsterStats hitPoints={m.hitPoints} armor={m.armor} />
+              </Paper>
+            </View>
+          </Pressable>
+        );
+      })}
 
       <SectionHeader title="Cenário" />
       <View style={styles.preview}>
@@ -94,8 +104,8 @@ export default function NewBattle() {
         );
       })}
 
-      <Muted>A ordem dos turnos é definida por um d20 de iniciativa para cada participante e para o monstro.</Muted>
-      <Button title="⚔️ Iniciar batalha" disabled={!monsterId || selected.length === 0} onPress={start} />
+      <Muted>A ordem dos turnos é definida por um d20 de iniciativa para cada participante e para cada monstro.</Muted>
+      <Button title="⚔️ Iniciar batalha" disabled={monsterIds.length === 0 || selected.length === 0} onPress={start} />
     </Screen>
   );
 }

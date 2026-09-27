@@ -10,7 +10,7 @@ import { CoinIcon, StarIcon } from '@/components/monster-stats';
 import { LevelUpBlock } from '@/components/level-up-block';
 import { openLoots } from '@/components/loot-panel';
 import { Avatar, Button, Card, Muted, Screen, SectionHeader, Stat, TabBar, text } from '@/components/ui';
-import { currentLooter, currentTurn } from '@/lib/engine';
+import { currentLooter, currentTurn, foeNames } from '@/lib/engine';
 import { useStore } from '@/lib/store';
 import { WIDGET_CHARACTER_KEY } from '@/lib/storage-keys';
 import { colors, radius, spacing } from '@/lib/theme';
@@ -44,8 +44,7 @@ export default function CharacterSheet() {
   const shops = codex?.shops.filter((s) => s.visibleTo.includes(character.id)) ?? [];
   const offers = codex?.abilities.filter((a) => a.offeredTo.includes(character.id)) ?? [];
   const battle = codex?.battles.find((b) => b.status !== 'encerrada' && !b.xpAwarded && b.participants.some((p) => p.characterId === character.id));
-  const battleMonster = codex?.monsters.find((m) => m.id === battle?.monsterId);
-  const inBattle = !!(codex && battle && battleMonster);
+  const inBattle = !!(codex && battle);
   const tab = inBattle ? (chosenTab ?? 'batalha') : chosenTab === 'batalha' ? 'ficha' : (chosenTab ?? 'ficha');
   const klass = codex?.classes.find((k) => k.id === character.classId);
   const classOffers = codex?.classes.filter((k) => k.offeredTo.includes(character.id)) ?? [];
@@ -200,7 +199,7 @@ export default function CharacterSheet() {
   if (tab === 'batalha' && codex && battle) {
     return (
       <Screen>
-        <Stack.Screen options={{ title: `⚔️ ${battleMonster?.name ?? 'Batalha'}` }} />
+        <Stack.Screen options={{ title: `⚔️ ${codex && battle ? foeNames(battle, codex.monsters) : 'Batalha'}` }} />
         {tabs}
         <BattleView key={battle.id} codexId={codex.id} battleId={battle.id} characterId={character.id} />
       </Screen>
@@ -297,7 +296,6 @@ export default function CharacterSheet() {
             .filter((b) => b.loot!.order.includes(character.id))
             .map((b) => {
               const mine = currentLooter(b) === character.id;
-              const m = codex.monsters.find((x) => x.id === b.monsterId);
               return (
                 <Card
                   key={b.id}
@@ -307,7 +305,7 @@ export default function CharacterSheet() {
                   <View style={styles.shopRow}>
                     <Text style={{ fontSize: 28 }}>💰</Text>
                     <View style={{ flex: 1 }}>
-                      <Text style={text.strong}>Espólios · {m?.name ?? 'monstro'}</Text>
+                      <Text style={text.strong}>Espólios · {foeNames(b, codex.monsters)}</Text>
                       <Muted>
                         {mine ? '⭐ Sua vez de pegar itens!' : `Vez de ${characters.find((c) => c.id === currentLooter(b))?.name ?? '?'}`} ·{' '}
                         {b.loot!.items.reduce((n, i) => n + i.quantity, 0)} item(ns)

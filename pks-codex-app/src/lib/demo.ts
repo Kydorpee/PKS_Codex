@@ -84,10 +84,10 @@ export function loadDemo(data: Data): Result {
 
   const seeded: Data = { characters: [...data.characters, ...heroes], codexes: [...data.codexes, codex] };
 
-  // Batalha em andamento contra a Aranha Gigante, na floresta à noite.
-  const spider = monsters[1];
-  const battle = startBattle(seeded, codexId, spider.id, [aria.id, bram.id], 'floresta-noite');
+  // Batalha em andamento contra a Aranha Gigante e o Goblin, na floresta à noite.
+  const [goblin, spider] = monsters;
+  const battle = startBattle(seeded, codexId, [spider.id, goblin.id], [aria.id, bram.id], 'floresta-noite');
   if ('error' in battle) return battle;
   const battleId = battle.data.codexes.find((c) => c.id === codexId)!.battles[0].id;
-  return setMonsterDisplay(battle.data, codexId, battleId, spider.abilities[1]?.id, 'Faminta e irritada');
+  return setMonsterDisplay(battle.data, codexId, battleId, spider.id, spider.abilities[1]?.id, 'Faminta e irritada');
 }

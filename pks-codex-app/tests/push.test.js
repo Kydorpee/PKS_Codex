@@ -20,6 +20,23 @@ test('avisa quando o turno passa e quando a batalha começa', () => {
   assert.equal(events.length, 1);
   assert.equal(events[0].actor, 'monstro');
   assert.equal(events[0].monsterName, 'Aranha');
+  assert.equal(events[0].monster, true);
+});
+
+test('batalha com vários monstros: avisa o turno de cada monstro pelo nome', () => {
+  const monsters = [{ id: 'm1', name: 'Aranha' }, { id: 'm2', name: 'Lobo' }];
+  const multi = (turnIndex) => ({
+    id: 'b2',
+    status: 'ativa',
+    foes: [{ monsterId: 'm1' }, { monsterId: 'm2' }],
+    order: ['a', 'm2', 'm1'],
+    turnIndex,
+    round: 1,
+  });
+  const [player] = codexEvents(codex({ monsters }), codex({ monsters, battles: [multi(0)] }));
+  assert.deepEqual([player.monster, player.monsterName], [false, 'Aranha, Lobo']);
+  const [wolf] = codexEvents(codex({ monsters, battles: [multi(0)] }), codex({ monsters, battles: [multi(1)] }));
+  assert.deepEqual([wolf.actor, wolf.monster, wolf.monsterName], ['m2', true, 'Lobo']);
 });
 
 test('não avisa se o turno não mudou ou a batalha acabou', () => {

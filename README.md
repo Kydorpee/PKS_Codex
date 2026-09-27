@@ -73,8 +73,11 @@ Os dados ficam salvos no aparelho e são sincronizados em tempo real pelo Fireba
 
 ### ⚔️ Batalhas
 
-- **Ordem de turnos por iniciativa**, com rodadas e indicação de quem está jogando.
-- **Ações do jogador:** ataque físico, usar habilidade, usar item, **Observar** (revela os detalhes do monstro) e **Fugir**.
+- **Até 4 monstros por batalha**, cada um com vida, status, balão, iniciativa e turno próprios. O jogador escolhe qual monstro atacar e a vitória vem quando todos caem.
+- **Ordem de turnos por iniciativa** (d20 para cada personagem e cada monstro), com rodadas e indicação de quem está jogando.
+- **Ações do jogador:** ataque físico, usar habilidade, usar item, **Defender**, **Observar** (revela armadura e habilidades do monstro escolhido) e **Fugir**.
+- **Armadura:** o dado do ataque precisa ser maior ou igual à armadura do alvo. Se não for, o ataque erra na hora (o custo da habilidade é gasto mesmo assim). Habilidades sem dano, como cura, não dependem da armadura.
+- **Defender:** o próximo ataque de monstro causa metade do dano, até o próximo turno do personagem.
 - **Rolagem de dados** d4, d6, d8, d10, d12 e d20 direto na tela, com o resultado registrado no log.
 - **Status automáticos**, aplicados pelo sistema e que o Mestre não pode alterar:
 
@@ -85,10 +88,11 @@ Os dados ficam salvos no aparelho e são sincronizados em tempo real pelo Fireba
   | ❄️ Congelamento | perde o próximo turno |
   | 💫 Atordoamento | perde o próximo turno |
 
-- **Cenários em pixel art** escolhidos pelo Mestre: planície, deserto, gelo e floresta (de dia e à noite) e catacumbas.
-- **Balão do monstro** mostrando a habilidade que ele vai usar e sua condição (ex.: "Furioso").
+- **Cenários em pixel art** escolhidos pelo Mestre: planície, deserto, gelo, floresta e mar (de dia e à noite) e catacumbas.
+- **Balão de cada monstro** mostrando a habilidade que ele vai usar e sua condição (ex.: "Furioso").
+- **Efeitos visuais:** o alvo treme e pisca ao tomar dano ou ser curado, com o número flutuando ("−7", "+5", "Errou!"), o dado virtual gira antes de parar e o "Seu turno!" pulsa. As animações respeitam a opção "Remover animações" do aparelho.
 - **Log de combate** colorido por tipo: dano, cura, status e dados.
-- **XP proporcional ao dano** no fim da batalha e **loot** liberado quando o monstro morre.
+- **XP proporcional ao dano** no fim da batalha e **Espólios** com os itens de todos os monstros derrotados, pegos em turnos pelos personagens vivos.
 
 ### ✨ Extras
 
@@ -106,6 +110,10 @@ Os dados ficam salvos no aparelho e são sincronizados em tempo real pelo Fireba
 | XP para subir de nível | `nível atual × 100` |
 | Custo das habilidades | mágica → mana · física → estamina |
 | Divisão de XP | quem causou mais dano recebe o máximo e quem não causou dano recebe o mínimo. Quem morreu ou fugiu recebe o mínimo. |
+| Acertar um monstro | dado do ataque ≥ armadura do monstro |
+| Defender | metade do dano do próximo ataque (arredondado para baixo) |
+| Fugir | d20 ≥ 10 |
+| Monstros por batalha | até 4 |
 
 As regras ficam em [`pks-codex-app/src/lib/rules.ts`](pks-codex-app/src/lib/rules.ts) e o motor de batalha em [`pks-codex-app/src/lib/engine.ts`](pks-codex-app/src/lib/engine.ts).
 
@@ -232,7 +240,8 @@ npm test            # ou: scripts/check.ps1 (typecheck + testes)
 
 | Arquivo | Cobre |
 | --- | --- |
-| `tests/engine.test.js` | Iniciativa, turnos, custo de mana, status, fuga, XP, subida de nível e modo demonstração |
+| `tests/engine.test.js` | Iniciativa, turnos, vários monstros, armadura, defesa, custo de mana, status, fuga, espólios, XP, subida de nível, conversão de batalhas antigas e modo demonstração |
+| `tests/push.test.js` | Quando as notificações push de turno e de nível são enviadas |
 | `tests/sync.test.js` | Detecção de mudanças e sincronização dos documentos |
 | `tests/pixel-shapes.test.js` | Desenho dos ícones em pixel art |
 

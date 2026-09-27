@@ -2,11 +2,10 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { currentLooter, currentTurn } from '@/lib/engine';
+import { currentLooter, currentTurn, foeNames, foeOf } from '@/lib/engine';
 import { STATUS_INFO } from '@/lib/rules';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
-import { MONSTER_TURN } from '@/lib/types';
 
 type Href = Parameters<typeof router.push>[0];
 
@@ -64,7 +63,7 @@ function watch(store: ReturnType<typeof useStore>): Notice[] {
       if (battle.status !== 'ativa' || (!isMaster && !ownCharacter)) continue;
 
       const turn = currentTurn(battle);
-      const monster = codex.monsters.find((m) => m.id === battle.monsterId);
+      const against = foeNames(battle, codex.monsters);
       const viewer = mine.has(turn) ? turn : isMaster ? undefined : ownCharacter;
       const base = {
         slot: `batalha/${battle.id}`,
@@ -87,10 +86,10 @@ function watch(store: ReturnType<typeof useStore>): Notice[] {
         detail: hit ? `Chance de ${hit.chance}% · o sistema rolou ${hit.roll} · ${STATUS_INFO[hit.type].effect}` : '',
         mine: false,
       });
-      if (turn === MONSTER_TURN) {
+      if (foeOf(battle, turn)) {
         notices.push({
           ...base,
-          title: `👹 Vez de ${monster?.name ?? 'monstro'}`,
+          title: `👹 Vez de ${codex.monsters.find((m) => m.id === turn)?.name ?? 'monstro'}`,
           detail: isMaster ? 'Mestre, escolha a ação do monstro.' : `Rodada ${battle.round}`,
           mine: isMaster,
         });
@@ -100,7 +99,7 @@ function watch(store: ReturnType<typeof useStore>): Notice[] {
         notices.push({
           ...base,
           title: myTurn ? `🔔 Sua vez, ${actor?.name ?? '?'}!` : `⚔️ Vez de ${actor?.name ?? '?'}`,
-          detail: myTurn ? 'Toque para agir na batalha.' : `Rodada ${battle.round} · contra ${monster?.name ?? 'o monstro'}`,
+          detail: myTurn ? 'Toque para agir na batalha.' : `Rodada ${battle.round} · contra ${against}`,
           mine: myTurn,
         });
       }

@@ -1,13 +1,14 @@
 /**
  * Descobre o que mudou num Codex e merece notificação push. Função pura (testada em tests/push.test.js).
  */
-const MONSTER_TURN = 'monstro';
+/** Turno do monstro nas batalhas antigas (um monstro por batalha). */
+const LEGACY_MONSTER_TURN = 'monstro';
 
 const turnKey = (b) => `${b.round}:${b.turnIndex}:${b.order[b.turnIndex]}`;
 
 /**
  * @returns {Array<
- *   | { kind: 'turno', battleId: string, actor: string, monsterName: string, round: number }
+ *   | { kind: 'turno', battleId: string, actor: string, monster: boolean, monsterName: string, round: number }
  *   | { kind: 'nivel', characterId: string, level: number, count: number, eventId: string }
  * >}
  */
@@ -20,12 +21,18 @@ function codexEvents(before, after) {
     if (battle.status !== 'ativa' || !battle.order?.length) continue;
     const prev = previous.get(battle.id);
     if (prev && prev.status === 'ativa' && turnKey(prev) === turnKey(battle)) continue;
-    const monster = (after.monsters ?? []).find((m) => m.id === battle.monsterId);
+    const nameOf = (id) => (after.monsters ?? []).find((m) => m.id === id)?.name ?? 'Monstro';
+    // Batalhas novas têm a lista `foes`; as antigas, um `monsterId` e o turno "monstro".
+    const foeIds = battle.foes ? battle.foes.map((f) => f.monsterId) : [battle.monsterId];
+    const actor = battle.order[battle.turnIndex];
+    const monster = actor === LEGACY_MONSTER_TURN || (!!battle.foes && foeIds.includes(actor));
     events.push({
       kind: 'turno',
       battleId: battle.id,
-      actor: battle.order[battle.turnIndex],
-      monsterName: monster?.name ?? 'Monstro',
+      actor,
+      monster,
+      // No turno de um monstro, o nome dele; no de um personagem, contra quem ele luta.
+      monsterName: monster && actor !== LEGACY_MONSTER_TURN ? nameOf(actor) : foeIds.map(nameOf).join(', '),
       round: battle.round,
     });
   }
@@ -46,4 +53,4 @@ function codexEvents(before, after) {
   return events;
 }
 
-module.exports = { codexEvents, MONSTER_TURN };
+module.exports = { codexEvents };

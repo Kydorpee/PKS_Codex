@@ -134,8 +134,10 @@ export type Participant = {
   initiative: number;
   damageDealt: number;
   fled: boolean;
-  /** Usou "Observar": passa a ver os detalhes do monstro. */
-  observed: boolean;
+  /** Monstros que o personagem observou ("Observar"): passa a ver os detalhes deles. */
+  observedIds: string[];
+  /** Usou "Defender": o próximo ataque de monstro causa metade do dano, até o seu próximo turno. */
+  defending?: boolean;
 };
 
 export type PendingAction = {
@@ -145,6 +147,8 @@ export type PendingAction = {
   abilityId?: string;
   /** Valor do dado digitado pelo jogador ao atacar. */
   dice?: number;
+  /** Monstro atacado (id do monstro no Codex). */
+  targetId?: string;
 };
 
 /** Último status aplicado pelo sistema na batalha; gera o aviso "Alvo (status)". */
@@ -180,7 +184,7 @@ export type Terrain =
   | 'mar-noite';
 
 /**
- * Espólios do monstro derrotado. Cada personagem vivo tem uma vez (na ordem da batalha)
+ * Espólios dos monstros derrotados. Cada personagem vivo tem uma vez (na ordem da batalha)
  * para pegar itens e passar a vez; depois da última vez, o que sobrou é apagado.
  */
 export type Loot = {
@@ -191,35 +195,49 @@ export type Loot = {
   done: boolean;
 };
 
-/** Na ordem de turnos, o monstro é representado por este id. */
-export const MONSTER_TURN = 'monstro';
+/** Na ordem de turnos das versões antigas (um monstro por batalha), o monstro era este id. */
+export const LEGACY_MONSTER_TURN = 'monstro';
+
+/** Até quantos monstros entram numa mesma batalha. */
+export const MAX_FOES = 4;
+
+/** Monstro em combate: cada um tem vida, status, balão e turno próprios. */
+export type Foe = {
+  /** Id do monstro no Codex; é também o id dele na ordem de turnos. */
+  monsterId: string;
+  hp: number;
+  maxHp: number;
+  /** Status aplicados pelo sistema; o Mestre não altera. */
+  statuses: ActiveStatus[];
+  /** Habilidade que aparece no balão do monstro (definida pelo Mestre). */
+  abilityId?: string;
+  /** Condição do monstro escrita pelo Mestre (ex.: "Furioso"). */
+  condition: string;
+};
+
+/** Efeito visual de um alvo na última ação (tremor, número flutuante). */
+export type Hit = { targetId: string; kind: 'dano' | 'cura' | 'errou'; amount: number; defended?: boolean };
 
 export type Battle = {
   id: string;
-  monsterId: string;
   status: 'ativa' | 'vitoria' | 'encerrada';
-  monsterHp: number;
-  monsterMaxHp: number;
-  /** Cenário exibido embaixo do monstro (escolhido pelo Mestre). */
+  foes: Foe[];
+  /** Cenário exibido embaixo dos monstros (escolhido pelo Mestre). */
   terrain: Terrain;
-  /** Habilidade que aparece no balão do monstro (definida pelo Mestre). */
-  monsterAbilityId?: string;
-  /** Condição do monstro escrita pelo Mestre (ex.: "Furioso"). */
-  monsterCondition: string;
-  /** Status aplicados pelo sistema; o Mestre não altera. */
-  monsterStatuses: ActiveStatus[];
   participants: Participant[];
-  /** Ids de personagens e MONSTER_TURN, por iniciativa. */
+  /** Ids de personagens e de monstros, por iniciativa. */
   order: string[];
   initiatives: Record<string, number>;
   turnIndex: number;
   round: number;
   pending?: PendingAction;
   lastStatus?: StatusHit;
-  lastRoll?: { sides: number; value: number; by: string };
+  lastRoll?: { id?: string; sides: number; value: number; by: string };
+  /** O que a última ação causou em cada alvo; `id` muda a cada ação, para as animações. */
+  fx?: { id: string; hits: Hit[] };
   log: LogEntry[];
   xpAwarded?: Record<string, number>;
-  /** Local "Espólios": itens do monstro derrotado, pegos em turnos. */
+  /** Local "Espólios": itens dos monstros derrotados, pegos em turnos. */
   loot?: Loot;
   createdAt: number;
 };

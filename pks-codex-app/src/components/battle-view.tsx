@@ -2,15 +2,19 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BattleLog, DicePanel, MonsterPanel, ParticipantList, TurnOrder } from './battle';
+import { Pulse } from './battle-fx';
 import { LootPanel } from './loot-panel';
 import { CharacterBars } from './character-stats';
 import { CostIcon, DamageStat, IconStat, StarIcon } from './monster-stats';
 import { TerrainPicker } from './pixel-scene';
 import { Button, Card, Muted, SectionHeader, text } from './ui';
 import {
+  aliveFoes,
   awardXp,
   currentTurn,
   endBattle,
+  foeOf,
+  isOffensive,
   isOut,
   monsterAction,
   playerAction,
@@ -26,12 +30,12 @@ import {
 import { STATUS_INFO } from '@/lib/rules';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
-import { MONSTER_TURN, costLabel, type Ability, type Battle, type Character, type Codex, type Monster } from '@/lib/types';
+import { costLabel, type Ability, type Battle, type Character, type Codex, type Foe } from '@/lib/types';
 
 const toInt = (v: string) => Math.max(0, parseInt(v.replace(/\D/g, ''), 10) || 0);
 
 /**
- * A batalha inteira (dado, monstro, turnos, ações, participantes e registro), sem a moldura da tela.
+ * A batalha inteira (dado, monstros, turnos, ações, participantes e registro), sem a moldura da tela.
  * Usada na rota da batalha e nas abas "Batalha" da ficha do personagem e do painel do Codex.
  * Sem `characterId`, mostra a visão do Mestre.
  */
@@ -39,9 +43,8 @@ export function BattleView({ codexId, battleId, characterId }: { codexId: string
   const { codexes, characters, act } = useStore();
   const codex = codexes.find((c) => c.id === codexId);
   const battle = codex?.battles.find((b) => b.id === battleId);
-  const monster = codex?.monsters.find((m) => m.id === battle?.monsterId);
 
-  if (!codex || !battle || !monster) return <Muted>Batalha não encontrada.</Muted>;
+  if (!codex || !battle) return <Muted>Batalha não encontrada.</Muted>;
 
   const isMaster = !characterId;
   const viewer = characters.find((c) => c.id === characterId);
@@ -62,14 +65,14 @@ export function BattleView({ codexId, battleId, characterId }: { codexId: string
         onRoll={(sides) => run((d) => rollBattleDie(d, codex.id, battle.id, sides, isMaster ? 'Mestre' : (viewer?.name ?? '?')))}
       />
 
-      <MonsterPanel monster={monster} battle={battle} reveal={isMaster || !!participant?.observed} />
+      <MonsterPanel battle={battle} monsters={codex.monsters} reveal={(id) => isMaster || !!participant?.observedIds.includes(id)} />
 
       <Muted>Rodada {battle.round}</Muted>
-      <TurnOrder battle={battle} monster={monster} characters={characters} />
+      <TurnOrder battle={battle} monsters={codex.monsters} characters={characters} />
 
       {battle.status === 'ativa' &&
         (isMaster ? (
-          <MasterPanel codex={codex} battle={battle} monster={monster} characters={characters} run={run} />
+          <MasterPanel codex={codex} battle={battle} characters={characters} run={run} />
         ) : viewer ? (
           <PlayerPanel codex={codex} battle={battle} viewer={viewer} characters={characters} run={run} />
         ) : null)}
@@ -100,9 +103,27 @@ type PanelProps = {
   run: (rule: (d: Data) => Result) => void;
 };
 
+const monsterName = (codex: Codex, id: string | undefined) => codex.monsters.find((m) => m.id === id)?.name ?? 'Monstro';
+
+/** Chips para escolher um monstro vivo (só aparecem quando há mais de um). */
+function FoePicker({ codex, foes, value, onChange, label = '🎯 Alvo' }: { codex: Codex; foes: Foe[]; value?: string; onChange: (id: string) => void; label?: string }) {
+  if (foes.length < 2) return null;
+  return (
+    <View style={{ gap: 2 }}>
+      <Muted>{label}</Muted>
+      <View style={styles.wrap}>
+        {foes.map((f) => (
+          <Chip key={f.monsterId} label={`${monsterName(codex, f.monsterId)} ❤️${f.hp}`} active={value === f.monsterId} onPress={() => onChange(f.monsterId)} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { viewer: Character }) {
-  const [menu, setMenu] = useState<'raiz' | 'atacar' | 'habilidade' | 'item'>('raiz');
+  const [menu, setMenu] = useState<'raiz' | 'atacar' | 'habilidade' | 'item' | 'observar'>('raiz');
   const [dice, setDice] = useState('');
+  const [targetId, setTargetId] = useState<string>();
   const turn = currentTurn(battle);
   const participant = battle.participants.find((p) => p.characterId === viewer.id);
 
@@ -114,20 +135,29 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
     return (
       <Card style={styles.turnCard}>
         <Text style={text.strong}>⏳ {battle.pending.label}</Text>
-        <Muted>Aguardando o Mestre definir o resultado. Use o dado acima se o Mestre pedir.</Muted>
+        <Muted>
+          {battle.pending.targetId ? `Acertou ${monsterName(codex, battle.pending.targetId)}! ` : ''}Aguardando o Mestre definir o resultado. Use o
+          dado acima se o Mestre pedir.
+        </Muted>
       </Card>
     );
   }
 
   if (turn !== viewer.id) {
-    const who = turn === MONSTER_TURN ? 'do monstro' : `de ${characters.find((c) => c.id === turn)?.name ?? '?'}`;
+    const who = foeOf(battle, turn) ? `de ${monsterName(codex, turn)}` : `de ${characters.find((c) => c.id === turn)?.name ?? '?'}`;
     return (
       <Card>
         <Text style={text.strong}>Turno {who}</Text>
-        <Muted>Aguarde a sua vez.</Muted>
+        <Muted>{participant.defending ? '🛡️ Você está defendendo: o próximo ataque causa metade do dano.' : 'Aguarde a sua vez.'}</Muted>
       </Card>
     );
   }
+
+  const alive = aliveFoes(battle);
+  // Alvo escolhido; se ele caiu (ou nada foi escolhido), o primeiro monstro vivo.
+  const target = alive.find((f) => f.monsterId === targetId) ?? alive[0];
+  const known = target && participant.observedIds.includes(target.monsterId);
+  const armor = codex.monsters.find((m) => m.id === target?.monsterId)?.armor;
 
   const act = (action: PlayerAction) => {
     run((d) => playerAction(d, codex.id, battle.id, viewer.id, action));
@@ -137,60 +167,92 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
   const diceValue = toInt(dice);
 
   return (
-    <Card style={styles.turnCard}>
-      <Text style={text.accentStrong}>⭐ Seu turno!</Text>
-      <CharacterBars character={viewer} />
-      {menu === 'raiz' && (
-        <View style={styles.actions}>
-          <Button title="⚔️ Atacar" onPress={() => setMenu('atacar')} />
-          <Button variant="secondary" title="👁️ Observar" onPress={() => act({ kind: 'observar' })} />
-          <Button variant="secondary" title="🏃 Fugir (d20 ≥ 10)" onPress={() => act({ kind: 'fugir' })} />
-        </View>
-      )}
-      {(menu === 'atacar' || menu === 'habilidade') && (
-        <View style={{ gap: 2 }}>
-          <Muted>🎲 Valor do dado do ataque</Muted>
-          <NumberInput value={dice} onChange={setDice} placeholder="Ex.: 15" />
-          <Muted>Role o seu dado (ou o virtual acima) e digite o valor. O Mestre define o dano.</Muted>
-        </View>
-      )}
-      {menu === 'atacar' && (
-        <View style={styles.actions}>
-          <Button title="👊 Golpe físico" disabled={!diceValue} onPress={() => act({ kind: 'fisico', dice: diceValue })} />
-          <Button variant="secondary" icon={<CostIcon kind="magica" />} title="Habilidade" onPress={() => setMenu('habilidade')} />
-          <Button variant="secondary" title="🎒 Usar item" onPress={() => setMenu('item')} />
-          <Button variant="ghost" title="Voltar" onPress={() => setMenu('raiz')} />
-        </View>
-      )}
-      {menu === 'habilidade' && (
-        <View style={styles.actions}>
-          {viewer.abilities.length === 0 && <Muted>Você ainda não tem habilidades.</Muted>}
-          {viewer.abilities.map((a) => {
-            const pool = a.kind === 'magica' ? viewer.mana : viewer.stamina;
-            return (
+    <Pulse active={menu === 'raiz'}>
+      <Card style={styles.turnCard}>
+        <Text style={text.accentStrong}>⭐ Seu turno!</Text>
+        <CharacterBars character={viewer} />
+        {menu === 'raiz' && (
+          <View style={styles.actions}>
+            <Button title="⚔️ Atacar" onPress={() => setMenu('atacar')} />
+            <Button variant="secondary" title="🛡️ Defender (metade do dano)" onPress={() => act({ kind: 'defender' })} />
+            <Button
+              variant="secondary"
+              title="👁️ Observar"
+              onPress={() => (alive.length > 1 ? setMenu('observar') : act({ kind: 'observar', targetId: target?.monsterId }))}
+            />
+            <Button variant="secondary" title="🏃 Fugir (d20 ≥ 10)" onPress={() => act({ kind: 'fugir' })} />
+          </View>
+        )}
+        {menu === 'observar' && (
+          <View style={styles.actions}>
+            <Muted>Quem você quer observar? Você passa a ver a armadura e as habilidades dele.</Muted>
+            {alive.map((f) => (
               <Button
-                key={a.id}
+                key={f.monsterId}
                 variant="secondary"
-                disabled={pool < a.cost || !diceValue}
-                icon={<CostIcon kind={a.kind} />}
-                title={`${a.name} · ${costLabel(a)}${a.status ? ` · ${STATUS_INFO[a.status].emoji}` : ''}`}
-                onPress={() => act({ kind: 'habilidade', abilityId: a.id, dice: diceValue })}
+                title={`👁️ ${monsterName(codex, f.monsterId)}${participant.observedIds.includes(f.monsterId) ? ' (já observado)' : ''}`}
+                onPress={() => act({ kind: 'observar', targetId: f.monsterId })}
               />
-            );
-          })}
-          <Button variant="ghost" title="Voltar" onPress={() => setMenu('atacar')} />
-        </View>
-      )}
-      {menu === 'item' && (
-        <View style={styles.actions}>
-          {viewer.inventory.length === 0 && <Muted>A bolsa está vazia.</Muted>}
-          {viewer.inventory.map((i) => (
-            <Button key={i.id} variant="secondary" title={`${i.name} (x${i.quantity})`} onPress={() => act({ kind: 'item', itemId: i.id })} />
-          ))}
-          <Button variant="ghost" title="Voltar" onPress={() => setMenu('atacar')} />
-        </View>
-      )}
-    </Card>
+            ))}
+            <Button variant="ghost" title="Voltar" onPress={() => setMenu('raiz')} />
+          </View>
+        )}
+        {(menu === 'atacar' || menu === 'habilidade') && (
+          <View style={{ gap: spacing.sm }}>
+            <FoePicker codex={codex} foes={alive} value={target?.monsterId} onChange={setTargetId} />
+            <View style={{ gap: 2 }}>
+              <Muted>🎲 Valor do dado do ataque</Muted>
+              <NumberInput value={dice} onChange={setDice} placeholder="Ex.: 15" />
+              <Muted>
+                Para acertar, o dado precisa ser maior ou igual à armadura
+                {known ? ` (${armor})` : ' do alvo'}. Se acertar, o Mestre define o dano.
+              </Muted>
+            </View>
+          </View>
+        )}
+        {menu === 'atacar' && (
+          <View style={styles.actions}>
+            <Button
+              title="👊 Golpe físico"
+              disabled={!diceValue}
+              onPress={() => act({ kind: 'fisico', dice: diceValue, targetId: target?.monsterId })}
+            />
+            <Button variant="secondary" icon={<CostIcon kind="magica" />} title="Habilidade" onPress={() => setMenu('habilidade')} />
+            <Button variant="secondary" title="🎒 Usar item" onPress={() => setMenu('item')} />
+            <Button variant="ghost" title="Voltar" onPress={() => setMenu('raiz')} />
+          </View>
+        )}
+        {menu === 'habilidade' && (
+          <View style={styles.actions}>
+            {viewer.abilities.length === 0 && <Muted>Você ainda não tem habilidades.</Muted>}
+            {viewer.abilities.map((a) => {
+              const pool = a.kind === 'magica' ? viewer.mana : viewer.stamina;
+              return (
+                <Button
+                  key={a.id}
+                  variant="secondary"
+                  disabled={pool < a.cost || !diceValue}
+                  icon={<CostIcon kind={a.kind} />}
+                  title={`${a.name} · ${costLabel(a)}${a.status ? ` · ${STATUS_INFO[a.status].emoji}` : ''}${isOffensive(a) ? '' : ' · sem alvo'}`}
+                  onPress={() => act({ kind: 'habilidade', abilityId: a.id, dice: diceValue, targetId: target?.monsterId })}
+                />
+              );
+            })}
+            <Muted>Habilidades sem dano (cura, apoio) não dependem da armadura.</Muted>
+            <Button variant="ghost" title="Voltar" onPress={() => setMenu('atacar')} />
+          </View>
+        )}
+        {menu === 'item' && (
+          <View style={styles.actions}>
+            {viewer.inventory.length === 0 && <Muted>A bolsa está vazia.</Muted>}
+            {viewer.inventory.map((i) => (
+              <Button key={i.id} variant="secondary" title={`${i.name} (x${i.quantity})`} onPress={() => act({ kind: 'item', itemId: i.id })} />
+            ))}
+            <Button variant="ghost" title="Voltar" onPress={() => setMenu('atacar')} />
+          </View>
+        )}
+      </Card>
+    </Pulse>
   );
 }
 
@@ -234,35 +296,16 @@ function StatusChance({ ability, target }: { ability?: Ability; target: string }
   );
 }
 
-function MasterPanel({ codex, battle, monster, characters, run }: PanelProps & { monster: Monster }) {
-  const turn = currentTurn(battle);
-  const alive = battle.participants
+/** Personagens ainda de pé na batalha. */
+const aliveCharacters = (battle: Battle, characters: Character[]) =>
+  battle.participants
     .map((p) => characters.find((c) => c.id === p.characterId))
     .filter((c): c is Character => !!c && !isOut(battle, c));
 
-  const [amount, setAmount] = useState('');
-  const [dice, setDice] = useState('');
-  // Cura: aberta pelo botão "Curar"; alvos (personagens e/ou o monstro) e quanto curar.
-  const [healing, setHealing] = useState(false);
-  const [healIds, setHealIds] = useState<string[]>([]);
-  const [healAmount, setHealAmount] = useState('');
-  const [abilityId, setAbilityId] = useState<string | undefined>(battle.monsterAbilityId);
-  const [targetId, setTargetId] = useState<string | undefined>();
-  const [condition, setCondition] = useState(battle.monsterCondition);
+const isDefending = (battle: Battle, id: string) => !!battle.participants.find((p) => p.characterId === id)?.defending;
 
-  const pending = battle.pending;
-  const pendingCharacter = characters.find((c) => c.id === pending?.characterId);
-  const pendingAbility = pendingCharacter?.abilities.find((a) => a.id === pending?.abilityId);
-  const monsterAbility = monster.abilities.find((a) => a.id === abilityId);
-
-  const resolve = (res: Parameters<typeof resolveAction>[3]) => {
-    run((d) => resolveAction(d, codex.id, battle.id, res));
-    setAmount('');
-    setHealing(false);
-    setHealIds([]);
-    setHealAmount('');
-  };
-  const toggleHeal = (id: string) => setHealIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+function MasterPanel({ codex, battle, characters, run }: PanelProps) {
+  const turn = currentTurn(battle);
 
   const confirmEnd = () =>
     Alert.alert('Encerrar batalha?', 'Ninguém recebe XP se a batalha for encerrada sem vitória.', [
@@ -272,90 +315,11 @@ function MasterPanel({ codex, battle, monster, characters, run }: PanelProps & {
 
   return (
     <>
-      {pending ? (
-        <Card style={styles.turnCard}>
-          <Text style={text.strong}>
-            {pendingCharacter?.name}: {pending.label}
-          </Text>
-          {pending.dice !== undefined && <Text style={text.accentStrong}>🎲 Dado do jogador: {pending.dice}</Text>}
-          {pendingAbility && <DamageStat damage={pendingAbility.baseDamage} />}
-          <StatusChance ability={pendingAbility} target={monster.name} />
-          {healing ? (
-            <View style={styles.actions}>
-              <Text style={text.strong}>💚 Quem deve ser curado?</Text>
-              <View style={styles.wrap}>
-                {alive.map((c) => (
-                  <Chip key={c.id} label={`${c.name} ❤️${c.hp}/${c.maxHp}`} active={healIds.includes(c.id)} onPress={() => toggleHeal(c.id)} />
-                ))}
-                <Chip
-                  label={`👹 ${monster.name} ❤️${battle.monsterHp}/${battle.monsterMaxHp}`}
-                  active={healIds.includes(MONSTER_TURN)}
-                  onPress={() => toggleHeal(MONSTER_TURN)}
-                />
-              </View>
-              <Muted>Quanto curar (cada alvo escolhido recebe este valor)</Muted>
-              <NumberInput value={healAmount} onChange={setHealAmount} placeholder="Cura" />
-              <Button
-                title={`💚 Curar ${healIds.length || ''} alvo(s)`}
-                disabled={healIds.length === 0 || !toInt(healAmount)}
-                onPress={() => resolve({ type: 'cura', amount: toInt(healAmount), targetIds: healIds })}
-              />
-              <Button variant="ghost" title="Voltar para o dano" onPress={() => setHealing(false)} />
-            </View>
-          ) : (
-            <>
-              <Muted>Digite o dano gerado pelo ataque.</Muted>
-              <NumberInput value={amount} onChange={setAmount} placeholder="Dano" />
-              <Button title="💥 Causar dano no monstro" disabled={!amount} onPress={() => resolve({ type: 'dano', amount: toInt(amount) })} />
-              <Button variant="secondary" title="💚 Curar" onPress={() => setHealing(true)} />
-            </>
-          )}
-          <Button variant="ghost" title="Sem efeito" onPress={() => resolve({ type: 'nada' })} />
-        </Card>
-      ) : turn === MONSTER_TURN ? (
-        <Card style={styles.turnCard}>
-          <Text style={text.accentStrong}>👹 Turno do monstro</Text>
-          <Muted>Habilidade</Muted>
-          <View style={styles.wrap}>
-            <Chip label="Ataque simples" active={!abilityId} onPress={() => setAbilityId(undefined)} />
-            {monster.abilities.map((a) => (
-              <Chip key={a.id} label={`${a.name}${a.status ? ` ${STATUS_INFO[a.status].emoji}` : ''}`} active={abilityId === a.id} onPress={() => setAbilityId(a.id)} />
-            ))}
-          </View>
-          {monsterAbility && <DamageStat damage={monsterAbility.baseDamage} />}
-          <Muted>Alvo</Muted>
-          <View style={styles.wrap}>
-            <Chip label="Nenhum" active={!targetId} onPress={() => setTargetId(undefined)} />
-            {alive.map((c) => (
-              <Chip key={c.id} label={`${c.name} ❤️${c.hp}`} active={targetId === c.id} onPress={() => setTargetId(c.id)} />
-            ))}
-          </View>
-          {targetId && (
-            <>
-              <StatusChance ability={monsterAbility} target={alive.find((c) => c.id === targetId)?.name ?? 'o alvo'} />
-              <View style={styles.inline}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Muted>🎲 Valor do dado</Muted>
-                  <NumberInput value={dice} onChange={setDice} placeholder="Ex.: 15" />
-                </View>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Muted>💥 Dano gerado</Muted>
-                  <NumberInput value={amount} onChange={setAmount} placeholder="Dano" />
-                </View>
-              </View>
-            </>
-          )}
-          <Button
-            title={targetId ? '💥 Aplicar dano' : 'Executar turno do monstro'}
-            disabled={!!targetId && (!toInt(dice) || !amount)}
-            onPress={() => {
-              run((d) => monsterAction(d, codex.id, battle.id, { abilityId, targetId, dice: toInt(dice), damage: toInt(amount) }));
-              setAmount('');
-              setDice('');
-              setTargetId(undefined);
-            }}
-          />
-        </Card>
+      {battle.pending ? (
+        <PendingCard key={`${battle.round}:${battle.turnIndex}`} codex={codex} battle={battle} characters={characters} run={run} />
+      ) : foeOf(battle, turn) ? (
+        // A chave zera as escolhas a cada turno de monstro.
+        <FoeTurnCard key={`${battle.round}:${turn}`} codex={codex} battle={battle} characters={characters} run={run} />
       ) : (
         <Card>
           <Text style={text.strong}>Aguardando {characters.find((c) => c.id === turn)?.name ?? '?'} escolher a ação.</Text>
@@ -371,35 +335,7 @@ function MasterPanel({ codex, battle, monster, characters, run }: PanelProps & {
         </Card>
       )}
 
-      <Card>
-        <Text style={text.strong}>🗨️ Balão do monstro</Text>
-        <View style={styles.wrap}>
-          <Chip label="Nenhuma" active={!battle.monsterAbilityId} onPress={() => run((d) => setMonsterDisplay(d, codex.id, battle.id, undefined, condition))} />
-          {monster.abilities.map((a) => (
-            <Chip
-              key={a.id}
-              label={a.name}
-              active={battle.monsterAbilityId === a.id}
-              onPress={() => run((d) => setMonsterDisplay(d, codex.id, battle.id, a.id, condition))}
-            />
-          ))}
-        </View>
-        <View style={styles.inline}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            placeholder="Condição (ex.: Furioso, Ferido)"
-            placeholderTextColor={colors.textMuted}
-            value={condition}
-            onChangeText={setCondition}
-          />
-          <Button
-            small
-            title="Atualizar"
-            onPress={() => run((d) => setMonsterDisplay(d, codex.id, battle.id, battle.monsterAbilityId, condition.trim()))}
-          />
-        </View>
-        <Muted>Status como veneno e congelamento são sorteados pelo sistema e não podem ser alterados.</Muted>
-      </Card>
+      <BalloonCard codex={codex} battle={battle} characters={characters} run={run} />
 
       <Card>
         <Text style={text.strong}>🗺️ Cenário</Text>
@@ -407,6 +343,197 @@ function MasterPanel({ codex, battle, monster, characters, run }: PanelProps & {
       </Card>
 
       <Button variant="danger" title="Encerrar batalha sem vitória" onPress={confirmEnd} />
+    </>
+  );
+}
+
+/** O Mestre resolve a ação do jogador: dano no monstro, cura ou sem efeito. */
+function PendingCard({ codex, battle, characters, run }: PanelProps) {
+  const pending = battle.pending!;
+  const alive = aliveCharacters(battle, characters);
+  const foes = aliveFoes(battle);
+  const [amount, setAmount] = useState('');
+  const [targetId, setTargetId] = useState(pending.targetId);
+  // Cura: aberta pelo botão "Curar"; alvos (personagens e/ou monstros) e quanto curar.
+  const [healing, setHealing] = useState(false);
+  const [healIds, setHealIds] = useState<string[]>([]);
+  const [healAmount, setHealAmount] = useState('');
+
+  const pendingCharacter = characters.find((c) => c.id === pending.characterId);
+  const pendingAbility = pendingCharacter?.abilities.find((a) => a.id === pending.abilityId);
+  const target = foes.find((f) => f.monsterId === targetId) ?? foes[0];
+  const armor = codex.monsters.find((m) => m.id === pending.targetId)?.armor;
+
+  const resolve = (res: Parameters<typeof resolveAction>[3]) => run((d) => resolveAction(d, codex.id, battle.id, res));
+  const toggleHeal = (id: string) => setHealIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+
+  return (
+    <Card style={styles.turnCard}>
+      <Text style={text.strong}>
+        {pendingCharacter?.name}: {pending.label}
+        {pending.targetId ? ` → ${monsterName(codex, pending.targetId)}` : ''}
+      </Text>
+      {pending.dice !== undefined && (
+        <Text style={text.accentStrong}>
+          🎲 Dado do jogador: {pending.dice}
+          {armor !== undefined ? ` · acertou (armadura ${armor})` : ''}
+        </Text>
+      )}
+      {pendingAbility && <DamageStat damage={pendingAbility.baseDamage} />}
+      <StatusChance ability={pendingAbility} target={monsterName(codex, target?.monsterId)} />
+      {healing ? (
+        <View style={styles.actions}>
+          <Text style={text.strong}>💚 Quem deve ser curado?</Text>
+          <View style={styles.wrap}>
+            {alive.map((c) => (
+              <Chip key={c.id} label={`${c.name} ❤️${c.hp}/${c.maxHp}`} active={healIds.includes(c.id)} onPress={() => toggleHeal(c.id)} />
+            ))}
+            {foes.map((f) => (
+              <Chip
+                key={f.monsterId}
+                label={`👹 ${monsterName(codex, f.monsterId)} ❤️${f.hp}/${f.maxHp}`}
+                active={healIds.includes(f.monsterId)}
+                onPress={() => toggleHeal(f.monsterId)}
+              />
+            ))}
+          </View>
+          <Muted>Quanto curar (cada alvo escolhido recebe este valor)</Muted>
+          <NumberInput value={healAmount} onChange={setHealAmount} placeholder="Cura" />
+          <Button
+            title={`💚 Curar ${healIds.length || ''} alvo(s)`}
+            disabled={healIds.length === 0 || !toInt(healAmount)}
+            onPress={() => resolve({ type: 'cura', amount: toInt(healAmount), targetIds: healIds })}
+          />
+          <Button variant="ghost" title="Voltar para o dano" onPress={() => setHealing(false)} />
+        </View>
+      ) : (
+        <>
+          <FoePicker codex={codex} foes={foes} value={target?.monsterId} onChange={setTargetId} label="🎯 Monstro atingido" />
+          <Muted>Digite o dano gerado pelo ataque.</Muted>
+          <NumberInput value={amount} onChange={setAmount} placeholder="Dano" />
+          <Button
+            title={`💥 Causar dano em ${monsterName(codex, target?.monsterId)}`}
+            disabled={!amount || !target}
+            onPress={() => resolve({ type: 'dano', amount: toInt(amount), targetId: target?.monsterId })}
+          />
+          <Button variant="secondary" title="💚 Curar" onPress={() => setHealing(true)} />
+        </>
+      )}
+      <Button variant="ghost" title="Sem efeito" onPress={() => resolve({ type: 'nada' })} />
+    </Card>
+  );
+}
+
+/** Turno de um monstro: o Mestre escolhe habilidade, alvo, dado e dano. */
+function FoeTurnCard({ codex, battle, characters, run }: PanelProps) {
+  const foe = foeOf(battle, currentTurn(battle))!;
+  const monster = codex.monsters.find((m) => m.id === foe.monsterId);
+  const alive = aliveCharacters(battle, characters);
+  const [abilityId, setAbilityId] = useState(foe.abilityId);
+  const [targetId, setTargetId] = useState<string>();
+  const [dice, setDice] = useState('');
+  const [amount, setAmount] = useState('');
+
+  const ability = monster?.abilities.find((a) => a.id === abilityId);
+  const target = alive.find((c) => c.id === targetId);
+  const defending = !!target && isDefending(battle, target.id);
+
+  return (
+    <Card style={styles.turnCard}>
+      <Text style={text.accentStrong}>👹 Turno de {monster?.name ?? 'monstro'}</Text>
+      <Muted>Habilidade</Muted>
+      <View style={styles.wrap}>
+        <Chip label="Ataque simples" active={!abilityId} onPress={() => setAbilityId(undefined)} />
+        {monster?.abilities.map((a) => (
+          <Chip key={a.id} label={`${a.name}${a.status ? ` ${STATUS_INFO[a.status].emoji}` : ''}`} active={abilityId === a.id} onPress={() => setAbilityId(a.id)} />
+        ))}
+      </View>
+      {ability && <DamageStat damage={ability.baseDamage} />}
+      <Muted>Alvo</Muted>
+      <View style={styles.wrap}>
+        <Chip label="Nenhum" active={!targetId} onPress={() => setTargetId(undefined)} />
+        {alive.map((c) => (
+          <Chip
+            key={c.id}
+            label={`${isDefending(battle, c.id) ? '🛡️ ' : ''}${c.name} ❤️${c.hp}`}
+            active={targetId === c.id}
+            onPress={() => setTargetId(c.id)}
+          />
+        ))}
+      </View>
+      {target && (
+        <>
+          {defending && (
+            <View style={[styles.chance, { borderColor: colors.mana }]}>
+              <Text style={[text.strong, { color: colors.mana }]}>🛡️ {target.name} está defendendo</Text>
+              <Muted>
+                O dano digitado cai pela metade
+                {toInt(amount) ? `: ${toInt(amount)} → ${Math.floor(toInt(amount) / 2)}` : ''}.
+              </Muted>
+            </View>
+          )}
+          <StatusChance ability={ability} target={target.name} />
+          <View style={styles.inline}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Muted>🎲 Valor do dado</Muted>
+              <NumberInput value={dice} onChange={setDice} placeholder="Ex.: 15" />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Muted>💥 Dano gerado</Muted>
+              <NumberInput value={amount} onChange={setAmount} placeholder="Dano" />
+            </View>
+          </View>
+        </>
+      )}
+      <Button
+        title={targetId ? '💥 Aplicar dano' : `Executar turno de ${monster?.name ?? 'monstro'}`}
+        disabled={!!targetId && (!toInt(dice) || !amount)}
+        onPress={() => run((d) => monsterAction(d, codex.id, battle.id, { abilityId, targetId, dice: toInt(dice), damage: toInt(amount) }))}
+      />
+    </Card>
+  );
+}
+
+/** Balão de cada monstro: habilidade exibida e condição escrita pelo Mestre. */
+function BalloonCard({ codex, battle, run }: PanelProps) {
+  const alive = aliveFoes(battle);
+  const [foeId, setFoeId] = useState<string>();
+  const foe = alive.find((f) => f.monsterId === foeId) ?? alive[0];
+  if (!foe) return null;
+  return (
+    <Card>
+      <Text style={text.strong}>🗨️ Balão do monstro</Text>
+      <FoePicker codex={codex} foes={alive} value={foe.monsterId} onChange={setFoeId} label="Monstro" />
+      {/* A chave recomeça a condição digitada ao trocar de monstro. */}
+      <BalloonEditor key={foe.monsterId} codex={codex} battle={battle} foe={foe} run={run} />
+      <Muted>Status como veneno e congelamento são sorteados pelo sistema e não podem ser alterados.</Muted>
+    </Card>
+  );
+}
+
+function BalloonEditor({ codex, battle, foe, run }: Omit<PanelProps, 'characters'> & { foe: Foe }) {
+  const [condition, setCondition] = useState(foe.condition);
+  const monster = codex.monsters.find((m) => m.id === foe.monsterId);
+  const show = (abilityId: string | undefined, cond: string) =>
+    run((d) => setMonsterDisplay(d, codex.id, battle.id, foe.monsterId, abilityId, cond));
+  return (
+    <>
+      <View style={styles.wrap}>
+        <Chip label="Nenhuma" active={!foe.abilityId} onPress={() => show(undefined, condition)} />
+        {monster?.abilities.map((a) => (
+          <Chip key={a.id} label={a.name} active={foe.abilityId === a.id} onPress={() => show(a.id, condition)} />
+        ))}
+      </View>
+      <View style={styles.inline}>
+        <TextInput
+          style={[styles.input, { flex: 1 }]}
+          placeholder="Condição (ex.: Furioso, Ferido)"
+          placeholderTextColor={colors.textMuted}
+          value={condition}
+          onChangeText={setCondition}
+        />
+        <Button small title="Atualizar" onPress={() => show(foe.abilityId, condition.trim())} />
+      </View>
     </>
   );
 }

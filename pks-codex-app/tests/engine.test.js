@@ -79,12 +79,12 @@ function playToVictory(data, battleIndex = 0) {
   const hp = (id) => data.characters.find((c) => c.id === id).hp;
   for (let turn = 0; turn < 60 && battle().status === 'ativa'; turn++) {
     const current = E.currentTurn(battle());
-    if (current === 'monstro') {
+    if (E.foeOf(battle(), current)) {
       const alive = ['a', 'b'].filter((id) => hp(id) > 0);
       data = ok(E.monsterAction(data, 'cx', battle().id, { abilityId: 'bite', targetId: alive[turn % alive.length], dice: 12, damage: 2 }));
     } else {
-      const ability = E.playerAction(data, 'cx', battle().id, current, { kind: 'habilidade', abilityId: 'fb', dice: 10 });
-      data = 'error' in ability ? ok(E.playerAction(data, 'cx', battle().id, current, { kind: 'fisico', dice: 10 })) : ability.data;
+      const ability = E.playerAction(data, 'cx', battle().id, current, { kind: 'habilidade', abilityId: 'fb', dice: 15 });
+      data = 'error' in ability ? ok(E.playerAction(data, 'cx', battle().id, current, { kind: 'fisico', dice: 15 })) : ability.data;
       data = ok(E.resolveAction(data, 'cx', battle().id, { type: 'dano', amount: current === 'a' ? 9 : 3 }));
     }
   }
@@ -92,7 +92,7 @@ function playToVictory(data, battleIndex = 0) {
 }
 
 test('iniciativa define a ordem e começa na rodada 1', () => {
-  const data = ok(E.startBattle(setup(), 'cx', 'aranha', ['a', 'b'], 'gelo-noite'));
+  const data = ok(E.startBattle(setup(), 'cx', ['aranha'], ['a', 'b'], 'gelo-noite'));
   const battle = data.codexes[0].battles[0];
   assert.equal(battle.round, 1);
   assert.equal(battle.order.length, 3);
@@ -103,7 +103,7 @@ test('iniciativa define a ordem e começa na rodada 1', () => {
 });
 
 test('jogador não pode agir fora do seu turno', () => {
-  const data = ok(E.startBattle(setup(), 'cx', 'aranha', ['a', 'b'], 'planicie'));
+  const data = ok(E.startBattle(setup(), 'cx', ['aranha'], ['a', 'b'], 'planicie'));
   const battle = data.codexes[0].battles[0];
   const notTurn = ['a', 'b'].find((id) => id !== E.currentTurn(battle));
   assert.ok('error' in E.playerAction(data, 'cx', battle.id, notTurn, { kind: 'fisico', dice: 10 }));
@@ -112,7 +112,7 @@ test('jogador não pode agir fora do seu turno', () => {
 test('habilidade mágica gasta mana e é bloqueada sem mana suficiente', () => {
   let data = setup();
   data.characters[0].mana = 3; // Bola de Fogo custa 5
-  data = ok(E.startBattle(data, 'cx', 'aranha', ['a'], 'planicie'));
+  data = ok(E.startBattle(data, 'cx', ['aranha'], ['a'], 'planicie'));
   const battle = () => data.codexes[0].battles[0];
   while (E.currentTurn(battle()) !== 'a') data = ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }));
   const result = E.playerAction(data, 'cx', battle().id, 'a', { kind: 'habilidade', abilityId: 'fb', dice: 10 });
@@ -120,7 +120,7 @@ test('habilidade mágica gasta mana e é bloqueada sem mana suficiente', () => {
 });
 
 test('ataque exige o valor do dado e o status aplicado gera o aviso', () => {
-  let data = ok(E.startBattle(setup(), 'cx', 'aranha', ['a'], 'planicie'));
+  let data = ok(E.startBattle(setup(), 'cx', ['aranha'], ['a'], 'planicie'));
   const battle = () => data.codexes[0].battles[0];
   while (E.currentTurn(battle()) !== 'a') data = ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }));
   assert.equal(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'fisico', dice: 0 }).error, 'Digite o valor do dado.');
@@ -134,24 +134,24 @@ test('ataque exige o valor do dado e o status aplicado gera o aviso', () => {
 });
 
 test('cura escolhe vários alvos, inclusive o monstro', () => {
-  let data = ok(E.startBattle(setup(), 'cx', 'aranha', ['a', 'b'], 'planicie'));
+  let data = ok(E.startBattle(setup(), 'cx', ['aranha'], ['a', 'b'], 'planicie'));
   const battle = () => data.codexes[0].battles[0];
-  while (E.currentTurn(battle()) === 'monstro') data = ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }));
+  while (E.foeOf(battle(), E.currentTurn(battle()))) data = ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }));
   const actor = E.currentTurn(battle());
   data.characters.forEach((c) => (c.hp = 5));
-  data.codexes[0].battles[0].monsterHp = 20;
-  data = ok(E.playerAction(data, 'cx', battle().id, actor, { kind: 'fisico', dice: 8 }));
+  data.codexes[0].battles[0].foes[0].hp = 20;
+  data = ok(E.playerAction(data, 'cx', battle().id, actor, { kind: 'fisico', dice: 15 }));
   assert.ok('error' in E.resolveAction(data, 'cx', battle().id, { type: 'cura', amount: 4, targetIds: [] }), 'exige alvo');
-  data = ok(E.resolveAction(data, 'cx', battle().id, { type: 'cura', amount: 4, targetIds: ['a', 'b', 'monstro'] }));
+  data = ok(E.resolveAction(data, 'cx', battle().id, { type: 'cura', amount: 4, targetIds: ['a', 'b', 'aranha'] }));
   assert.deepEqual(data.characters.map((c) => c.hp), [9, 9]);
-  assert.equal(battle().monsterHp, 24);
+  assert.equal(battle().foes[0].hp, 24);
 });
 
 test('batalha completa: vitória, status sorteados e monstro derrotado', () => {
-  const data = playToVictory(ok(E.startBattle(setup(), 'cx', 'aranha', ['a', 'b'], 'floresta')));
+  const data = playToVictory(ok(E.startBattle(setup(), 'cx', ['aranha'], ['a', 'b'], 'floresta')));
   const battle = data.codexes[0].battles[0];
   assert.equal(battle.status, 'vitoria');
-  assert.equal(battle.monsterHp, 0);
+  assert.equal(battle.foes[0].hp, 0);
   assert.equal(data.codexes[0].monsters[0].defeated, true);
   const log = battle.log.map((l) => l.text).join('\n');
   assert.match(log, /chance de veneno 100%/, 'sistema sorteia o veneno');
@@ -160,7 +160,7 @@ test('batalha completa: vitória, status sorteados e monstro derrotado', () => {
 });
 
 test('XP proporcional ao dano, sem distribuir duas vezes', () => {
-  let data = playToVictory(ok(E.startBattle(setup(), 'cx', 'aranha', ['a', 'b'], 'deserto')));
+  let data = playToVictory(ok(E.startBattle(setup(), 'cx', ['aranha'], ['a', 'b'], 'deserto')));
   const battle = () => data.codexes[0].battles[0];
   data = ok(E.awardXp(data, 'cx', battle().id, 40, 150));
   const [pa, pb] = battle().participants;
@@ -183,7 +183,7 @@ test('mortos e quem fugiu recebem o XP mínimo', () => {
 });
 
 test('subir de nível cria evento e o Mestre define as recompensas', () => {
-  let data = playToVictory(ok(E.startBattle(setup(), 'cx', 'aranha', ['a', 'b'], 'catacumbas')));
+  let data = playToVictory(ok(E.startBattle(setup(), 'cx', ['aranha'], ['a', 'b'], 'catacumbas')));
   data = ok(E.awardXp(data, 'cx', data.codexes[0].battles[0].id, 120, 150));
   const event = data.codexes[0].levelUps[0];
   assert.ok(event, 'evento de nível criado');
@@ -233,11 +233,11 @@ test('Mestre entrega XP e itens só aos personagens escolhidos', () => {
 });
 
 test('fuga com d20 e encerramento sem vitória', () => {
-  let data = ok(E.startBattle(setup([monster('lobo', 10)]), 'cx', 'lobo', ['a'], 'planicie-noite'));
+  let data = ok(E.startBattle(setup([monster('lobo', 10)]), 'cx', ['lobo'], ['a'], 'planicie-noite'));
   const battle = () => data.codexes[0].battles[0];
   for (let i = 0; i < 40 && !battle().participants[0].fled; i++) {
     data =
-      E.currentTurn(battle()) === 'monstro'
+      E.foeOf(battle(), E.currentTurn(battle()))
         ? ok(E.monsterAction(data, 'cx', battle().id, { targetId: 'a', dice: 5, damage: 0 }))
         : ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'fugir' }));
   }
@@ -296,11 +296,15 @@ test('trocar de classe troca as habilidades da classe e mantém as gerais', () =
 
 test('espólios: vivos pegam em turnos e o que sobra é apagado', () => {
   const loot = [{ id: 'p', name: 'Poção', quantity: 2, description: '' }, { id: 'e', name: 'Espada', quantity: 1, description: '' }];
-  let data = ok(E.startBattle(setup([{ ...monster('aranha', 5, []), loot }]), 'cx', 'aranha', ['a', 'b'], 'mar'));
+  let data = ok(E.startBattle(setup([{ ...monster('aranha', 5, []), loot }]), 'cx', ['aranha'], ['a', 'b'], 'mar'));
   const battle = () => data.codexes[0].battles[0];
   data.characters[1].hp = 0; // Bram morreu: não tem vez
   data.codexes[0].battles[0].participants[1].fled = false;
-  while (E.currentTurn(battle()) !== 'a') data = ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }));
+  while (E.currentTurn(battle()) !== 'a') {
+    data = E.foeOf(battle(), E.currentTurn(battle()))
+      ? ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }))
+      : ok(E.skipTurn(data, 'cx', battle().id)); // a vez já era de Bram quando ele caiu
+  }
   data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'fisico', dice: 20 }));
   data = ok(E.resolveAction(data, 'cx', battle().id, { type: 'dano', amount: 5 }));
   assert.equal(battle().status, 'vitoria');
@@ -312,4 +316,120 @@ test('espólios: vivos pegam em turnos e o que sobra é apagado', () => {
   data = ok(E.passLoot(data, 'cx', battle().id, 'a'));
   assert.equal(battle().loot.done, true);
   assert.deepEqual(battle().loot.items, [], 'sobras apagadas');
+});
+
+/** Joga os turnos dos monstros (sem dano) até chegar a vez de `id`. */
+function untilTurn(data, id) {
+  const battle = () => data.codexes[0].battles[0];
+  while (E.currentTurn(battle()) !== id) {
+    if (!E.foeOf(battle(), E.currentTurn(battle()))) assert.fail('turno inesperado de outro personagem');
+    data = ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }));
+  }
+  return data;
+}
+
+test('dado abaixo da armadura erra na hora; habilidade de cura não depende da armadura', () => {
+  let data = ok(E.startBattle(setup(), 'cx', ['aranha'], ['a'], 'planicie'));
+  const battle = () => data.codexes[0].battles[0];
+  data = untilTurn(data, 'a');
+  const mana = data.characters[0].mana;
+  data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'habilidade', abilityId: 'fb', dice: 11 })); // armadura 12
+  assert.equal(battle().pending, undefined, 'errou: não vai para o Mestre');
+  assert.equal(data.characters[0].mana, mana - 5, 'o custo é gasto mesmo errando');
+  assert.deepEqual(battle().fx.hits[0], { targetId: 'aranha', kind: 'errou', amount: 0 });
+  assert.match(battle().log.map((l) => l.text).join('\n'), /Errou!/);
+
+  data.characters[0].abilities.push({ ...fireball, id: 'cura', name: 'Cura', baseDamage: '', status: undefined });
+  data = untilTurn(data, 'a');
+  data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'habilidade', abilityId: 'cura', dice: 1 }));
+  assert.equal(battle().pending.abilityId, 'cura', 'cura vai para o Mestre mesmo com dado baixo');
+});
+
+test('defender reduz o próximo dano pela metade e acaba no turno seguinte', () => {
+  let data = ok(E.startBattle(setup([monster('lobo', 30)]), 'cx', ['lobo'], ['a'], 'planicie'));
+  const battle = () => data.codexes[0].battles[0];
+  data = untilTurn(data, 'a');
+  data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'defender' }));
+  assert.equal(battle().participants[0].defending, true);
+  const hp = data.characters[0].hp;
+  data = ok(E.monsterAction(data, 'cx', battle().id, { targetId: 'a', dice: 14, damage: 7 }));
+  assert.equal(data.characters[0].hp, hp - 3, 'metade de 7, arredondado para baixo');
+  assert.equal(battle().fx.hits[0].defended, true);
+  assert.equal(battle().participants[0].defending, false, 'a defesa vale para um ataque');
+
+  data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'defender' }));
+  data = ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }));
+  assert.equal(E.currentTurn(battle()), 'a');
+  assert.equal(battle().participants[0].defending, false, 'acaba no início do próprio turno');
+});
+
+test('vários monstros: cada um tem turno e vida; a vitória vem quando todos caem', () => {
+  const loot = (name) => [{ id: name, name, quantity: 1, description: '' }];
+  let data = setup([{ ...monster('aranha', 6, [bite]), loot: loot('Seda') }, { ...monster('lobo', 4), loot: loot('Pele') }]);
+  data = ok(E.startBattle(data, 'cx', ['aranha', 'lobo'], ['a'], 'floresta'));
+  const battle = () => data.codexes[0].battles[0];
+  assert.equal(battle().order.length, 3);
+  assert.deepEqual(battle().foes.map((f) => f.hp), [6, 4]);
+  assert.ok('error' in E.startBattle(data, 'cx', ['lobo'], ['b'], 'mar'), 'monstro ocupado em outra batalha');
+
+  data = untilTurn(data, 'a');
+  assert.equal(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'fisico', dice: 15 }).error, 'Escolha o monstro alvo.');
+  data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'fisico', dice: 15, targetId: 'lobo' }));
+  assert.equal(battle().pending.targetId, 'lobo');
+  data = ok(E.resolveAction(data, 'cx', battle().id, { type: 'dano', amount: 99 }));
+  assert.equal(battle().foes[1].hp, 0);
+  assert.equal(battle().participants[0].damageDealt, 4, 'dano limitado à vida do monstro');
+  assert.equal(data.codexes[0].monsters[1].defeated, true);
+  assert.equal(battle().status, 'ativa', 'ainda falta a aranha');
+
+  data = untilTurn(data, 'a');
+  assert.ok(!battle().order.some((id, i) => i === battle().turnIndex && id === 'lobo'), 'lobo derrotado não joga');
+  data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'fisico', dice: 15 }));
+  assert.equal(battle().pending.targetId, 'aranha', 'com um só vivo, o alvo é automático');
+  data = ok(E.resolveAction(data, 'cx', battle().id, { type: 'dano', amount: 6 }));
+  assert.equal(battle().status, 'vitoria');
+  assert.deepEqual(battle().loot.items.map((i) => i.name).sort(), ['Pele', 'Seda'], 'espólio de todos os monstros');
+});
+
+test('observar revela só o monstro escolhido', () => {
+  let data = ok(E.startBattle(setup([monster('aranha', 6), monster('lobo', 4)]), 'cx', ['aranha', 'lobo'], ['a'], 'gelo'));
+  const battle = () => data.codexes[0].battles[0];
+  data = untilTurn(data, 'a');
+  data = ok(E.playerAction(data, 'cx', battle().id, 'a', { kind: 'observar', targetId: 'lobo' }));
+  assert.deepEqual(battle().participants[0].observedIds, ['lobo']);
+});
+
+test('batalha salva no formato antigo (um monstro) é convertida', () => {
+  const old = {
+    id: 'b1',
+    monsterId: 'aranha',
+    status: 'ativa',
+    monsterHp: 12,
+    monsterMaxHp: 30,
+    terrain: 'mar',
+    monsterAbilityId: 'bite',
+    monsterCondition: 'Furiosa',
+    monsterStatuses: [{ type: 'veneno', roundsLeft: 2 }],
+    participants: [{ characterId: 'a', initiative: 5, damageDealt: 3, fled: false, observed: true }],
+    order: ['monstro', 'a'],
+    initiatives: { monstro: 14, a: 5 },
+    turnIndex: 0,
+    round: 2,
+    log: [],
+    createdAt: 0,
+  };
+  const codex = R.normalizeCodex({ ...setup().codexes[0], battles: [old] });
+  const b = codex.battles[0];
+  assert.deepEqual(b.foes, [
+    { monsterId: 'aranha', hp: 12, maxHp: 30, statuses: [{ type: 'veneno', roundsLeft: 2 }], condition: 'Furiosa', abilityId: 'bite' },
+  ]);
+  assert.deepEqual(b.order, ['aranha', 'a']);
+  assert.deepEqual(b.initiatives, { aranha: 14, a: 5 });
+  assert.deepEqual(b.participants[0].observedIds, ['aranha']);
+  assert.equal('monsterHp' in b, false);
+  assert.equal(R.normalizeBattle(b), b, 'já convertida fica igual');
+  // E a batalha continua jogável.
+  let data = { ...setup(), codexes: [codex] };
+  data = ok(E.monsterAction(data, 'cx', 'b1', { targetId: 'a', dice: 10, damage: 2 }));
+  assert.equal(E.currentTurn(data.codexes[0].battles[0]), 'a');
 });

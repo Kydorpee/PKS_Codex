@@ -1,5 +1,5 @@
 import { newId } from './ids';
-import type { Ability, ActiveStatus, Character, Codex, CodexAbility, Item, LevelUpEvent, StatusType } from './types';
+import { LEGACY_MONSTER_TURN, type Ability, type ActiveStatus, type Battle, type Character, type Codex, type CodexAbility, type Foe, type Item, type LevelUpEvent, type Participant, type StatusType } from './types';
 
 export const DICE = [4, 6, 8, 10, 12, 20] as const;
 
@@ -73,6 +73,46 @@ export function characterDefaults(): Omit<Character, 'id' | 'name' | 'age' | 'cr
   };
 }
 
+/** Batalha salva nas versões com um monstro só (campos `monster*` e o turno "monstro"). */
+type LegacyBattle = Omit<Battle, 'foes' | 'participants'> & {
+  foes?: Foe[];
+  participants: (Omit<Participant, 'observedIds'> & { observedIds?: string[]; observed?: boolean })[];
+  monsterId?: string;
+  monsterHp?: number;
+  monsterMaxHp?: number;
+  monsterAbilityId?: string;
+  monsterCondition?: string;
+  monsterStatuses?: ActiveStatus[];
+};
+
+/** Converte batalhas antigas (um monstro) para a lista de monstros. */
+export function normalizeBattle(b: Battle): Battle {
+  const legacy = b as LegacyBattle;
+  if (legacy.foes) return b;
+  const { monsterId = '', monsterHp = 0, monsterMaxHp = 0, monsterAbilityId, monsterCondition, monsterStatuses, ...rest } = legacy;
+  const rename = (id: string) => (id === LEGACY_MONSTER_TURN ? monsterId : id);
+  return {
+    ...rest,
+    foes: [
+      {
+        monsterId,
+        hp: monsterHp,
+        maxHp: monsterMaxHp,
+        statuses: monsterStatuses ?? [],
+        condition: monsterCondition ?? '',
+        ...(monsterAbilityId ? { abilityId: monsterAbilityId } : {}),
+      },
+    ],
+    order: rest.order.map(rename),
+    initiatives: Object.fromEntries(Object.entries(rest.initiatives).map(([id, n]) => [rename(id), n])),
+    participants: rest.participants.map(({ observed, observedIds, ...p }) => ({
+      ...p,
+      observedIds: observedIds ?? (observed ? [monsterId] : []),
+    })),
+    ...(rest.pending ? { pending: { ...rest.pending, targetId: rest.pending.targetId ?? monsterId } } : {}),
+  };
+}
+
 /** Preenche campos que não existiam em versões anteriores dos dados salvos. */
 export const normalizeCharacter = (c: Character): Character => ({ ...characterDefaults(), ...c });
 
@@ -83,7 +123,7 @@ export const normalizeCodex = (c: Codex): Codex => ({
   shops: c.shops ?? [],
   abilities: (c.abilities ?? []).map((a) => ({ ...a, offeredTo: a.offeredTo ?? [] })),
   classes: (c.classes ?? []).map((k) => ({ ...k, offeredTo: k.offeredTo ?? [] })),
-  battles: c.battles ?? [],
+  battles: (c.battles ?? []).map(normalizeBattle),
   levelUps: c.levelUps ?? [],
   startingItems: c.startingItems ?? [],
   allowFreeInventory: c.allowFreeInventory ?? false,

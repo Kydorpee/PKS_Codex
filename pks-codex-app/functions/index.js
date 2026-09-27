@@ -7,7 +7,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 const { onDocumentWritten } = require('firebase-functions/v2/firestore');
 const logger = require('firebase-functions/logger');
-const { codexEvents, MONSTER_TURN } = require('./events');
+const { codexEvents } = require('./events');
 
 initializeApp();
 const db = getFirestore();
@@ -51,7 +51,7 @@ exports.codexNotifications = onDocumentWritten('codexes/{codexId}', async (event
 
   for (const e of events) {
     try {
-      if (e.kind === 'turno' && e.actor === MONSTER_TURN) {
+      if (e.kind === 'turno' && e.monster) {
         await sendTo(after.ownerUid, `👹 Vez de ${e.monsterName}`, `Rodada ${e.round} · Mestre, escolha a ação do monstro.`, {
           kind: 'turno',
           codexId,

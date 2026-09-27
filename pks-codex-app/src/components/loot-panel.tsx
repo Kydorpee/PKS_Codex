@@ -1,6 +1,6 @@
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Muted, text } from './ui';
-import { currentLooter, passLoot, takeLoot, type Data, type Result } from '@/lib/engine';
+import { currentLooter, foeNames, passLoot, takeLoot, type Data, type Result } from '@/lib/engine';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
 import type { Battle, Codex } from '@/lib/types';
@@ -9,14 +9,14 @@ import type { Battle, Codex } from '@/lib/types';
 export const openLoots = (codex: Codex) => codex.battles.filter((b) => b.loot && !b.loot.done);
 
 /**
- * Local "Espólios": itens do monstro derrotado, compartilhados. Cada personagem vivo pega
+ * Local "Espólios": itens dos monstros derrotados, compartilhados. Cada personagem vivo pega
  * na sua vez e passa a vez; ao fim da última vez, o que sobrou é apagado.
  * Sem `characterId`, mostra a visão do Mestre (que pode pular a vez de quem não responde).
  */
 export function LootPanel({ codex, battle, characterId }: { codex: Codex; battle: Battle; characterId?: string }) {
   const { characters, act } = useStore();
   const loot = battle.loot;
-  const monster = codex.monsters.find((m) => m.id === battle.monsterId);
+  const from = foeNames(battle, codex.monsters);
   if (!loot) return null;
 
   const run = (rule: (d: Data) => Result) => {
@@ -30,7 +30,7 @@ export function LootPanel({ codex, battle, characterId }: { codex: Codex; battle
   if (loot.done) {
     return (
       <Card>
-        <Text style={text.strong}>💰 Espólios de {monster?.name ?? 'monstro'}</Text>
+        <Text style={text.strong}>💰 Espólios de {from}</Text>
         <Muted>Todos tiveram a sua vez. Os itens que sobraram foram apagados.</Muted>
       </Card>
     );
@@ -50,7 +50,7 @@ export function LootPanel({ codex, battle, characterId }: { codex: Codex; battle
 
   return (
     <Card style={myTurn && styles.mine}>
-      <Text style={text.accentStrong}>💰 Espólios de {monster?.name ?? 'monstro'}</Text>
+      <Text style={text.accentStrong}>💰 Espólios de {from}</Text>
       <Muted>Itens compartilhados: cada um pega na sua vez, na ordem da batalha. Ao fim, o que sobrar é apagado.</Muted>
 
       <View style={styles.order}>
