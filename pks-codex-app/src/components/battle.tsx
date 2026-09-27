@@ -2,7 +2,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { currentTurn, foeOf, isOut } from '@/lib/engine';
 import { DICE, STATUS_INFO } from '@/lib/rules';
 import { colors, hpColor, radius, spacing } from '@/lib/theme';
-import type { Battle, Character, Foe, LogTone, Monster } from '@/lib/types';
+import { diceLabel, type Battle, type Character, type Foe, type LogTone, type Monster } from '@/lib/types';
 import { HitFx, Pulse, RollingDie } from './battle-fx';
 import { CharacterBars } from './character-stats';
 import { BlastIcon, DamageStat, IconStat, SHIELD_COLOR } from './monster-stats';
@@ -201,7 +201,7 @@ export function TurnOrder({ battle, monsters, characters }: { battle: Battle; mo
               <Avatar uri={c?.photoUri} name={c?.name} size={32} />
             )}
             <Text style={styles.turnName} numberOfLines={1}>
-              {out ? (p?.fled ? '🏃 ' : '☠️ ') : p?.defending ? '🛡️ ' : ''}
+              {out ? (p?.fled ? '🏃 ' : '☠️ ') : p?.defense ? '🛡️ ' : ''}
               {foe ? (monster?.name ?? 'Monstro') : (c?.name ?? '?')}
             </Text>
             <Text style={styles.turnInit}>🎲 {battle.initiatives[id]}</Text>
@@ -225,11 +225,11 @@ export function ParticipantList({ battle, characters }: { battle: Battle; charac
                 <Avatar uri={c.photoUri} name={c.name} size={36} />
                 <View style={{ flex: 1 }}>
                   <Text style={text.strong}>
-                    {c.name} {p.fled ? '🏃' : c.hp <= 0 ? '☠️' : p.defending ? '🛡️' : ''}
+                    {c.name} {p.fled ? '🏃' : c.hp <= 0 ? '☠️' : p.defense ? '🛡️' : ''}
                   </Text>
                   <Muted>
                     Nível {c.level} · dano causado: {p.damageDealt}
-                    {p.defending ? ' · defendendo' : ''}
+                    {p.defense ? ` · defendendo (🎲 ${diceLabel(p.defense)})` : ''}
                   </Muted>
                 </View>
               </View>

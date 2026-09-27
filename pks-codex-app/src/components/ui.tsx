@@ -382,12 +382,15 @@ export function TabBar<K extends string>({ tabs, value, onChange }: { tabs: TabI
             onPress={() => onChange(t.key)}
             style={[tabStyles.tab, active && tabStyles.tabActive]}
           >
-            <Text style={[tabStyles.label, active && tabStyles.labelActive]} numberOfLines={1}>
+            {/* O nome encolhe para caber na aba, sem invadir a vizinha. */}
+            <Text style={[tabStyles.label, active && tabStyles.labelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
               {t.label}
             </Text>
             {!!t.badge && (
               <View style={tabStyles.badge}>
-                <Text style={tabStyles.badgeText}>{t.badge}</Text>
+                <Text style={tabStyles.badgeText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {t.badge}
+                </Text>
               </View>
             )}
           </Pressable>
@@ -409,17 +412,19 @@ const tabStyles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    flexDirection: 'row',
+    minWidth: 0,
+    // Selo embaixo do nome, para os dois caberem na largura da aba.
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
+    gap: 2,
     paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
     borderRadius: radius.sm,
   },
   tabActive: { backgroundColor: colors.gold },
-  label: { color: colors.textOnDarkMuted, fontSize: 15, fontWeight: '700' },
+  label: { color: colors.textOnDarkMuted, fontSize: 15, fontWeight: '700', maxWidth: '100%' },
   labelActive: { color: colors.text },
-  badge: { backgroundColor: colors.primary, borderRadius: radius.round, paddingHorizontal: 6, paddingVertical: 1 },
+  badge: { backgroundColor: colors.primary, borderRadius: radius.round, paddingHorizontal: 6, paddingVertical: 1, maxWidth: '100%' },
   badgeText: { color: colors.onPrimary, fontSize: 11, fontWeight: '800' },
 });
 

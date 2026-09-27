@@ -129,6 +129,11 @@ export type Shop = {
   visibleTo: string[];
 };
 
+/** Dado usado e o valor que saiu, ex.: d20 → 15. */
+export type DiceRoll = { sides: number; value: number };
+
+export const diceLabel = (roll: DiceRoll) => `d${roll.sides}: ${roll.value}`;
+
 export type Participant = {
   characterId: string;
   initiative: number;
@@ -136,8 +141,8 @@ export type Participant = {
   fled: boolean;
   /** Monstros que o personagem observou ("Observar"): passa a ver os detalhes deles. */
   observedIds: string[];
-  /** Usou "Defender": o próximo ataque de monstro causa metade do dano, até o seu próximo turno. */
-  defending?: boolean;
+  /** Usou "Defender": dado da defesa, que o Mestre considera ao decidir o dano do próximo ataque (até o seu próximo turno). */
+  defense?: DiceRoll;
 };
 
 export type PendingAction = {
@@ -147,6 +152,8 @@ export type PendingAction = {
   abilityId?: string;
   /** Valor do dado digitado pelo jogador ao atacar. */
   dice?: number;
+  /** Dado usado no ataque (20 = d20). */
+  diceSides?: number;
   /** Monstro atacado (id do monstro no Codex). */
   targetId?: string;
 };

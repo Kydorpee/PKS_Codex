@@ -3,13 +3,15 @@
  * trabalham numa cópia e devolvem os dados novos ou uma mensagem de erro.
  */
 import { newId } from './ids';
-import { STATUS_INFO, addStatus, addToInventory, gainXp, rollDie, splitXp } from './rules';
+import { DICE, STATUS_INFO, addStatus, addToInventory, gainXp, rollDie, splitXp } from './rules';
 import {
   MAX_FOES,
+  diceLabel,
   type ActiveStatus,
   type Battle,
   type Character,
   type Codex,
+  type DiceRoll,
   type Foe,
   type Hit,
   type Item,
@@ -135,7 +137,7 @@ function foeDown(ctx: Ctx, foe: Foe) {
 function victory(ctx: Ctx) {
   ctx.battle.status = 'vitoria';
   ctx.battle.pending = undefined;
-  ctx.battle.participants.forEach((p) => (p.defending = false));
+  ctx.battle.participants.forEach((p) => delete p.defense);
   ctx.log(ctx.battle.foes.length > 1 ? '🏆 Todos os monstros foram derrotados!' : '🏆 Vitória!', 'cura');
   openLoot(ctx);
 }
@@ -190,7 +192,7 @@ function advance(ctx: Ctx) {
     if (!character || isOut(battle, character)) continue;
     // A defesa dura até o próximo turno do personagem.
     const p = battle.participants.find((x) => x.characterId === actor);
-    if (p?.defending) p.defending = false;
+    if (p?.defense) delete p.defense;
     const { skip, remaining } = tickStatuses(ctx, character.id, character.name, character.statuses, (n) => {
       character.hp = Math.max(0, character.hp - n);
     });
@@ -298,13 +300,21 @@ export const rollBattleDie = (data: Data, codexId: string, battleId: string, sid
     ctx.log(`🎲 ${by} rolou d${sides}: ${value}`, 'dado');
   });
 
-/** `targetId` é o monstro atacado/observado; com um monstro só, pode ficar vazio. */
+/** Confere o dado escolhido e o valor digitado (entre 1 e o número de lados). */
+function checkRoll(roll: DiceRoll | undefined, what = 'do dado') {
+  if (!roll || !(roll.value >= 1)) fail(`Digite o valor ${what}.`);
+  if (!(DICE as readonly number[]).includes(roll!.sides)) fail('Escolha o dado usado.');
+  if (roll!.value > roll!.sides) fail(`O valor de um d${roll!.sides} vai de 1 a ${roll!.sides}.`);
+  return roll!;
+}
+
+/** `targetId` é o monstro atacado/observado; com um monstro só, pode ficar vazio. `roll` é o dado usado e o valor. */
 export type PlayerAction =
   | { kind: 'observar'; targetId?: string }
-  | { kind: 'defender' }
+  | { kind: 'defender'; roll: DiceRoll }
   | { kind: 'fugir' }
-  | { kind: 'fisico'; dice: number; targetId?: string }
-  | { kind: 'habilidade'; abilityId: string; dice: number; targetId?: string }
+  | { kind: 'fisico'; roll: DiceRoll; targetId?: string }
+  | { kind: 'habilidade'; abilityId: string; roll: DiceRoll; targetId?: string }
   | { kind: 'item'; itemId: string };
 
 /** Habilidade de ataque (tem dano base): precisa passar da armadura. As outras (cura, apoio) não. */
@@ -327,18 +337,26 @@ export const playerAction = (data: Data, codexId: string, battleId: string, char
     if (battle.pending) fail('Aguarde o Mestre resolver a ação.');
     const c = ctx.character(characterId) ?? fail('Personagem não encontrado.');
     const p = battle.participants.find((x) => x.characterId === characterId)!;
-    if ((action.kind === 'fisico' || action.kind === 'habilidade') && !(action.dice >= 1)) fail('Digite o valor do dado.');
+    if (action.kind === 'fisico' || action.kind === 'habilidade' || action.kind === 'defender') checkRoll(action.roll);
 
     /** O dado do ataque precisa ser maior ou igual à armadura do alvo; se não for, erra na hora. */
-    const attack = (foe: Foe, label: string, dice: number, abilityId?: string) => {
+    const attack = (foe: Foe, label: string, roll: DiceRoll, abilityId?: string) => {
       const m = ctx.monster(foe.monsterId);
-      if (dice < m.armor) {
+      if (roll.value < m.armor) {
         ctx.hit({ targetId: foe.monsterId, kind: 'errou', amount: 0 });
-        ctx.log(`🛡️ ${label} de ${c.name} (🎲 ${dice}) não passou da armadura de ${m.name}. Errou!`);
+        ctx.log(`🛡️ ${label} de ${c.name} (🎲 ${diceLabel(roll)}) não passou da armadura de ${m.name}. Errou!`);
         return advance(ctx);
       }
-      battle.pending = { characterId, kind: abilityId ? 'habilidade' : 'fisico', label, dice, targetId: foe.monsterId, ...(abilityId ? { abilityId } : {}) };
-      ctx.log(`🎯 ${label} de ${c.name} (🎲 ${dice}) acerta ${m.name}!`);
+      battle.pending = {
+        characterId,
+        kind: abilityId ? 'habilidade' : 'fisico',
+        label,
+        dice: roll.value,
+        diceSides: roll.sides,
+        targetId: foe.monsterId,
+        ...(abilityId ? { abilityId } : {}),
+      };
+      ctx.log(`🎯 ${label} de ${c.name} (🎲 ${diceLabel(roll)}) acerta ${m.name}!`);
     };
 
     switch (action.kind) {
@@ -349,8 +367,8 @@ export const playerAction = (data: Data, codexId: string, battleId: string, char
         return advance(ctx);
       }
       case 'defender':
-        p.defending = true;
-        ctx.log(`🛡️ ${c.name} se defende: o próximo ataque causa metade do dano.`);
+        p.defense = { sides: action.roll.sides, value: action.roll.value };
+        ctx.log(`🛡️ ${c.name} se defende (🎲 ${diceLabel(action.roll)}).`, 'dado');
         return advance(ctx);
       case 'fugir': {
         const roll = rollDie(20);
@@ -361,7 +379,7 @@ export const playerAction = (data: Data, codexId: string, battleId: string, char
       case 'fisico': {
         const foe = targetFoe(battle, action.targetId);
         ctx.log(`⚔️ ${c.name} desfere um golpe físico em ${ctx.monster(foe.monsterId).name}.`);
-        return attack(foe, 'Golpe físico', action.dice);
+        return attack(foe, 'Golpe físico', action.roll);
       }
       case 'habilidade': {
         const a = c.abilities.find((x) => x.id === action.abilityId) ?? fail('Habilidade não encontrada.');
@@ -374,8 +392,8 @@ export const playerAction = (data: Data, codexId: string, battleId: string, char
             a.kind === 'magica' ? 'mana' : 'estamina'
           }).`,
         );
-        if (foe) return attack(foe, a.name, action.dice, a.id);
-        battle.pending = { characterId, kind: 'habilidade', label: a.name, abilityId: a.id, dice: action.dice };
+        if (foe) return attack(foe, a.name, action.roll, a.id);
+        battle.pending = { characterId, kind: 'habilidade', label: a.name, abilityId: a.id, dice: action.roll.value, diceSides: action.roll.sides };
         return;
       }
       case 'item': {
@@ -454,14 +472,14 @@ export const resolveAction = (data: Data, codexId: string, battleId: string, res
   });
 
 /**
- * Turno de um monstro: o Mestre escolhe habilidade e alvo, digita o valor do dado e o dano.
- * Se o alvo estiver defendendo, o dano cai pela metade.
+ * Turno de um monstro: o Mestre escolhe habilidade e alvo, o dado usado, o valor e o dano.
+ * Se o alvo estiver defendendo, o Mestre vê o dado da defesa e digita o dano que ele recebe.
  */
 export const monsterAction = (
   data: Data,
   codexId: string,
   battleId: string,
-  action: { abilityId?: string; targetId?: string; dice?: number; damage: number },
+  action: { abilityId?: string; targetId?: string; roll?: DiceRoll; damage: number },
 ) =>
   withBattle(data, codexId, battleId, (ctx) => {
     const { battle } = ctx;
@@ -474,17 +492,17 @@ export const monsterAction = (
     if (action.targetId) {
       const target = ctx.character(action.targetId) ?? fail('Alvo não encontrado.');
       if (isOut(battle, target)) fail(`${target.name} não está mais na batalha.`);
-      if (!(action.dice && action.dice >= 1)) fail('Digite o valor do dado do ataque.');
+      const roll = checkRoll(action.roll, 'do dado do ataque');
       const p = battle.participants.find((x) => x.characterId === target.id);
-      const defended = !!p?.defending;
-      const damage = defended ? Math.floor(action.damage / 2) : action.damage;
-      if (p) p.defending = false;
+      const defense = p?.defense;
+      const damage = Math.max(0, action.damage);
+      if (p) delete p.defense;
       target.hp = Math.max(0, target.hp - damage);
-      ctx.hit({ targetId: target.id, kind: 'dano', amount: damage, defended });
+      ctx.hit({ targetId: target.id, kind: 'dano', amount: damage, defended: !!defense });
       ctx.log(
-        `👹 ${monster.name} usa ${ability?.name ?? 'um ataque'} em ${target.name} (🎲 ${action.dice}): ${
-          defended ? `🛡️ defendeu, ${damage} de dano (de ${action.damage}).` : `${damage} de dano.`
-        }`,
+        `👹 ${monster.name} usa ${ability?.name ?? 'um ataque'} em ${target.name} (🎲 ${diceLabel(roll)})${
+          defense ? ` — 🛡️ defesa ${diceLabel(defense)}` : ''
+        }: ${damage} de dano.`,
         'dano',
       );
       if (target.hp > 0) {
@@ -530,7 +548,7 @@ export const skipTurn = (data: Data, codexId: string, battleId: string) =>
 
 const clearStatuses = (ctx: Ctx) =>
   ctx.battle.participants.forEach((p) => {
-    p.defending = false;
+    delete p.defense;
     const c = ctx.character(p.characterId);
     if (c) c.statuses = [];
   });

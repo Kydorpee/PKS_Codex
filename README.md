@@ -77,7 +77,8 @@ Os dados ficam salvos no aparelho e são sincronizados em tempo real pelo Fireba
 - **Ordem de turnos por iniciativa** (d20 para cada personagem e cada monstro), com rodadas e indicação de quem está jogando.
 - **Ações do jogador:** ataque físico, usar habilidade, usar item, **Defender**, **Observar** (revela armadura e habilidades do monstro escolhido) e **Fugir**.
 - **Armadura:** o dado do ataque precisa ser maior ou igual à armadura do alvo. Se não for, o ataque erra na hora (o custo da habilidade é gasto mesmo assim). Habilidades sem dano, como cura, não dependem da armadura.
-- **Defender:** o próximo ataque de monstro causa metade do dano, até o próximo turno do personagem.
+- **Defender:** o personagem rola o dado da defesa. No próximo ataque de monstro, o Mestre vê esse valor e decide quanto dano ele recebe (vale até o próximo turno do personagem).
+- **Dado + valor:** em todo ataque e defesa, quem joga escolhe o dado usado (d4 a d20) e digita o valor ao lado, e o Mestre vê os dois (ex.: `d20 → 15`).
 - **Rolagem de dados** d4, d6, d8, d10, d12 e d20 direto na tela, com o resultado registrado no log.
 - **Status automáticos**, aplicados pelo sistema e que o Mestre não pode alterar:
 
@@ -111,7 +112,7 @@ Os dados ficam salvos no aparelho e são sincronizados em tempo real pelo Fireba
 | Custo das habilidades | mágica → mana · física → estamina |
 | Divisão de XP | quem causou mais dano recebe o máximo e quem não causou dano recebe o mínimo. Quem morreu ou fugiu recebe o mínimo. |
 | Acertar um monstro | dado do ataque ≥ armadura do monstro |
-| Defender | metade do dano do próximo ataque (arredondado para baixo) |
+| Defender | rola um dado; o Mestre decide o dano do próximo ataque com base nesse valor |
 | Fugir | d20 ≥ 10 |
 | Monstros por batalha | até 4 |
 

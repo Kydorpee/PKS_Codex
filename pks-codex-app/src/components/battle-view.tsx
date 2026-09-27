@@ -27,10 +27,10 @@ import {
   type PlayerAction,
   type Result,
 } from '@/lib/engine';
-import { STATUS_INFO } from '@/lib/rules';
+import { DICE, STATUS_INFO } from '@/lib/rules';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
-import { costLabel, type Ability, type Battle, type Character, type Codex, type Foe } from '@/lib/types';
+import { costLabel, diceLabel, type Ability, type Battle, type Character, type Codex, type DiceRoll, type Foe } from '@/lib/types';
 
 const toInt = (v: string) => Math.max(0, parseInt(v.replace(/\D/g, ''), 10) || 0);
 
@@ -121,7 +121,8 @@ function FoePicker({ codex, foes, value, onChange, label = '🎯 Alvo' }: { code
 }
 
 function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { viewer: Character }) {
-  const [menu, setMenu] = useState<'raiz' | 'atacar' | 'habilidade' | 'item' | 'observar'>('raiz');
+  const [menu, setMenu] = useState<'raiz' | 'atacar' | 'habilidade' | 'item' | 'observar' | 'defender'>('raiz');
+  const [sides, setSides] = useState(20);
   const [dice, setDice] = useState('');
   const [targetId, setTargetId] = useState<string>();
   const turn = currentTurn(battle);
@@ -148,7 +149,11 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
     return (
       <Card>
         <Text style={text.strong}>Turno {who}</Text>
-        <Muted>{participant.defending ? '🛡️ Você está defendendo: o próximo ataque causa metade do dano.' : 'Aguarde a sua vez.'}</Muted>
+        <Muted>
+          {participant.defense
+            ? `🛡️ Você está defendendo (🎲 ${diceLabel(participant.defense)}). O Mestre decide o dano do próximo ataque.`
+            : 'Aguarde a sua vez.'}
+        </Muted>
       </Card>
     );
   }
@@ -164,7 +169,8 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
     setMenu('raiz');
     setDice('');
   };
-  const diceValue = toInt(dice);
+  const roll: DiceRoll = { sides, value: toInt(dice) };
+  const rollOk = roll.value >= 1 && roll.value <= sides;
 
   return (
     <Pulse active={menu === 'raiz'}>
@@ -174,7 +180,7 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
         {menu === 'raiz' && (
           <View style={styles.actions}>
             <Button title="⚔️ Atacar" onPress={() => setMenu('atacar')} />
-            <Button variant="secondary" title="🛡️ Defender (metade do dano)" onPress={() => act({ kind: 'defender' })} />
+            <Button variant="secondary" title="🛡️ Defender" onPress={() => setMenu('defender')} />
             <Button
               variant="secondary"
               title="👁️ Observar"
@@ -197,12 +203,19 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
             <Button variant="ghost" title="Voltar" onPress={() => setMenu('raiz')} />
           </View>
         )}
+        {menu === 'defender' && (
+          <View style={styles.actions}>
+            <DiceInput label="🎲 Dado da defesa" sides={sides} onSides={setSides} value={dice} onValue={setDice} />
+            <Muted>Role o dado da defesa. O Mestre vê o valor e decide quanto dano você recebe do próximo ataque.</Muted>
+            <Button title={`🛡️ Defender${rollOk ? ` (${diceLabel(roll)})` : ''}`} disabled={!rollOk} onPress={() => act({ kind: 'defender', roll })} />
+            <Button variant="ghost" title="Voltar" onPress={() => setMenu('raiz')} />
+          </View>
+        )}
         {(menu === 'atacar' || menu === 'habilidade') && (
           <View style={{ gap: spacing.sm }}>
             <FoePicker codex={codex} foes={alive} value={target?.monsterId} onChange={setTargetId} />
             <View style={{ gap: 2 }}>
-              <Muted>🎲 Valor do dado do ataque</Muted>
-              <NumberInput value={dice} onChange={setDice} placeholder="Ex.: 15" />
+              <DiceInput label="🎲 Dado do ataque" sides={sides} onSides={setSides} value={dice} onValue={setDice} />
               <Muted>
                 Para acertar, o dado precisa ser maior ou igual à armadura
                 {known ? ` (${armor})` : ' do alvo'}. Se acertar, o Mestre define o dano.
@@ -214,8 +227,8 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
           <View style={styles.actions}>
             <Button
               title="👊 Golpe físico"
-              disabled={!diceValue}
-              onPress={() => act({ kind: 'fisico', dice: diceValue, targetId: target?.monsterId })}
+              disabled={!rollOk}
+              onPress={() => act({ kind: 'fisico', roll, targetId: target?.monsterId })}
             />
             <Button variant="secondary" icon={<CostIcon kind="magica" />} title="Habilidade" onPress={() => setMenu('habilidade')} />
             <Button variant="secondary" title="🎒 Usar item" onPress={() => setMenu('item')} />
@@ -231,10 +244,10 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
                 <Button
                   key={a.id}
                   variant="secondary"
-                  disabled={pool < a.cost || !diceValue}
+                  disabled={pool < a.cost || !rollOk}
                   icon={<CostIcon kind={a.kind} />}
                   title={`${a.name} · ${costLabel(a)}${a.status ? ` · ${STATUS_INFO[a.status].emoji}` : ''}${isOffensive(a) ? '' : ' · sem alvo'}`}
-                  onPress={() => act({ kind: 'habilidade', abilityId: a.id, dice: diceValue, targetId: target?.monsterId })}
+                  onPress={() => act({ kind: 'habilidade', abilityId: a.id, roll, targetId: target?.monsterId })}
                 />
               );
             })}
@@ -282,6 +295,66 @@ function NumberInput({ value, onChange, placeholder }: { value: string; onChange
   );
 }
 
+/**
+ * Dado usado + valor, lado a lado: toca no dado para trocar (d4…d20) e digita o valor que saiu.
+ * Avisa quando o valor passa do número de lados.
+ */
+function DiceInput({
+  label,
+  sides,
+  onSides,
+  value,
+  onValue,
+}: {
+  label: string;
+  sides: number;
+  onSides: (sides: number) => void;
+  value: string;
+  onValue: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const n = toInt(value);
+  return (
+    <View style={{ gap: 4 }}>
+      <Muted>{label}</Muted>
+      <View style={styles.inline}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Dado usado: d${sides}. Toque para trocar.`}
+          onPress={() => setOpen((o) => !o)}
+          style={styles.diePick}
+        >
+          <Text style={styles.diePickText}>🎲 d{sides} {open ? '▴' : '▾'}</Text>
+        </Pressable>
+        <TextInput
+          style={[styles.input, { flex: 1 }]}
+          keyboardType="number-pad"
+          placeholder={`Valor (1–${sides})`}
+          placeholderTextColor={colors.textMuted}
+          value={value}
+          onChangeText={(v) => onValue(v.replace(/\D/g, ''))}
+        />
+      </View>
+      {open && (
+        <View style={styles.wrap}>
+          {DICE.map((s) => (
+            <Chip
+              key={s}
+              label={`d${s}`}
+              active={s === sides}
+              onPress={() => {
+                onSides(s);
+                setOpen(false);
+              }}
+            />
+          ))}
+        </View>
+      )}
+      {n > sides && <Text style={[text.body, { color: colors.danger }]}>Um d{sides} vai de 1 a {sides}.</Text>}
+    </View>
+  );
+}
+
 /** Chance de status informada ao Mestre antes de aplicar o dano; o sorteio é do sistema. */
 function StatusChance({ ability, target }: { ability?: Ability; target: string }) {
   if (!ability?.status || !ability.statusChance) return null;
@@ -302,7 +375,7 @@ const aliveCharacters = (battle: Battle, characters: Character[]) =>
     .map((p) => characters.find((c) => c.id === p.characterId))
     .filter((c): c is Character => !!c && !isOut(battle, c));
 
-const isDefending = (battle: Battle, id: string) => !!battle.participants.find((p) => p.characterId === id)?.defending;
+const defenseOf = (battle: Battle, id: string) => battle.participants.find((p) => p.characterId === id)?.defense;
 
 function MasterPanel({ codex, battle, characters, run }: PanelProps) {
   const turn = currentTurn(battle);
@@ -375,7 +448,8 @@ function PendingCard({ codex, battle, characters, run }: PanelProps) {
       </Text>
       {pending.dice !== undefined && (
         <Text style={text.accentStrong}>
-          🎲 Dado do jogador: {pending.dice}
+          🎲 Dado do jogador: {pending.diceSides ? `d${pending.diceSides} → ` : ''}
+          {pending.dice}
           {armor !== undefined ? ` · acertou (armadura ${armor})` : ''}
         </Text>
       )}
@@ -431,12 +505,15 @@ function FoeTurnCard({ codex, battle, characters, run }: PanelProps) {
   const alive = aliveCharacters(battle, characters);
   const [abilityId, setAbilityId] = useState(foe.abilityId);
   const [targetId, setTargetId] = useState<string>();
+  const [sides, setSides] = useState(20);
   const [dice, setDice] = useState('');
   const [amount, setAmount] = useState('');
 
   const ability = monster?.abilities.find((a) => a.id === abilityId);
   const target = alive.find((c) => c.id === targetId);
-  const defending = !!target && isDefending(battle, target.id);
+  const defense = target && defenseOf(battle, target.id);
+  const roll: DiceRoll = { sides, value: toInt(dice) };
+  const rollOk = roll.value >= 1 && roll.value <= sides;
 
   return (
     <Card style={styles.turnCard}>
@@ -455,7 +532,7 @@ function FoeTurnCard({ codex, battle, characters, run }: PanelProps) {
         {alive.map((c) => (
           <Chip
             key={c.id}
-            label={`${isDefending(battle, c.id) ? '🛡️ ' : ''}${c.name} ❤️${c.hp}`}
+            label={`${defenseOf(battle, c.id) ? '🛡️ ' : ''}${c.name} ❤️${c.hp}`}
             active={targetId === c.id}
             onPress={() => setTargetId(c.id)}
           />
@@ -463,32 +540,26 @@ function FoeTurnCard({ codex, battle, characters, run }: PanelProps) {
       </View>
       {target && (
         <>
-          {defending && (
+          {defense && (
             <View style={[styles.chance, { borderColor: colors.mana }]}>
-              <Text style={[text.strong, { color: colors.mana }]}>🛡️ {target.name} está defendendo</Text>
-              <Muted>
-                O dano digitado cai pela metade
-                {toInt(amount) ? `: ${toInt(amount)} → ${Math.floor(toInt(amount) / 2)}` : ''}.
-              </Muted>
+              <Text style={[text.strong, { color: colors.mana }]}>
+                🛡️ {target.name} está defendendo · 🎲 d{defense.sides} → {defense.value}
+              </Text>
+              <Muted>Considere o dado da defesa e digite abaixo quanto dano {target.name} recebe.</Muted>
             </View>
           )}
           <StatusChance ability={ability} target={target.name} />
-          <View style={styles.inline}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Muted>🎲 Valor do dado</Muted>
-              <NumberInput value={dice} onChange={setDice} placeholder="Ex.: 15" />
-            </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Muted>💥 Dano gerado</Muted>
-              <NumberInput value={amount} onChange={setAmount} placeholder="Dano" />
-            </View>
+          <DiceInput label="🎲 Dado do ataque do monstro" sides={sides} onSides={setSides} value={dice} onValue={setDice} />
+          <View style={{ gap: 2 }}>
+            <Muted>{defense ? `💥 Dano que ${target.name} recebe` : '💥 Dano gerado'}</Muted>
+            <NumberInput value={amount} onChange={setAmount} placeholder="Dano" />
           </View>
         </>
       )}
       <Button
         title={targetId ? '💥 Aplicar dano' : `Executar turno de ${monster?.name ?? 'monstro'}`}
-        disabled={!!targetId && (!toInt(dice) || !amount)}
-        onPress={() => run((d) => monsterAction(d, codex.id, battle.id, { abilityId, targetId, dice: toInt(dice), damage: toInt(amount) }))}
+        disabled={!!targetId && (!rollOk || !amount)}
+        onPress={() => run((d) => monsterAction(d, codex.id, battle.id, { abilityId, targetId, roll: targetId ? roll : undefined, damage: toInt(amount) }))}
       />
     </Card>
   );
@@ -617,6 +688,17 @@ const styles = StyleSheet.create({
   },
   chipActive: { borderColor: colors.goldDim, backgroundColor: colors.gold },
   chipText: { color: colors.text, fontSize: 13, fontWeight: '600' },
+  diePick: {
+    backgroundColor: colors.primary,
+    borderColor: colors.gold,
+    borderWidth: 1,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minWidth: 96,
+    alignItems: 'center',
+  },
+  diePickText: { color: colors.onPrimary, fontSize: 16, fontWeight: '800' },
   input: {
     backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
