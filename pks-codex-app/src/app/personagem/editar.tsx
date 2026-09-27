@@ -11,6 +11,7 @@ import { pickPhoto } from '@/lib/photos';
 import { useStore } from '@/lib/store';
 import { colors, spacing } from '@/lib/theme';
 import type { Character } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 type Pool = { current: 'hp' | 'mana' | 'stamina'; max: 'maxHp' | 'maxMana' | 'maxStamina'; label: string; icon: ReactNode };
 
@@ -21,6 +22,7 @@ const POOLS: Pool[] = [
 ];
 
 export default function EditCharacter() {
+  const { t, tx } = useT();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { characters, saveCharacter } = useStore();
   const existing = characters.find((c) => c.id === id);
@@ -44,7 +46,7 @@ export default function EditCharacter() {
 
   const save = () => {
     if (!draft.name.trim()) {
-      Alert.alert('Nome obrigatório', 'Dê um nome ao seu personagem.');
+      Alert.alert(t('Nome obrigatório'), t('Dê um nome ao seu personagem.'));
       return;
     }
     // Na criação o personagem começa cheio; na edição o valor atual não passa do máximo.
@@ -67,7 +69,7 @@ export default function EditCharacter() {
       ...pools,
     });
     if (error) {
-      Alert.alert('Não foi possível salvar', error);
+      Alert.alert(t('Não foi possível salvar'), tx(error));
       return;
     }
     if (existing) router.back();
@@ -76,38 +78,38 @@ export default function EditCharacter() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: existing ? 'Editar personagem' : 'Novo personagem' }} />
+      <Stack.Screen options={{ title: existing ? t('Editar personagem') : t('Novo personagem') }} />
       <PhotoField uri={draft.photoUri} name={draft.name} onPick={choosePhoto} onRemove={() => set({ photoUri: undefined })} />
-      <Field label="Nome" placeholder="Ex.: Aria Lâmina-Negra" value={draft.name} onChangeText={(name) => set({ name })} />
-      <Field label="Raça" placeholder="Ex.: Elfo" value={draft.race} onChangeText={(race) => set({ race })} />
-      <Field label="Idade" placeholder="Ex.: 27" keyboardType="number-pad" value={draft.age} onChangeText={(age) => set({ age: age.replace(/\D/g, '') })} />
+      <Field label={t('Nome')} placeholder={t('Ex.: Aria Lâmina-Negra')} value={draft.name} onChangeText={(name) => set({ name })} />
+      <Field label={t('Raça')} placeholder={t('Ex.: Elfo')} value={draft.race} onChangeText={(race) => set({ race })} />
+      <Field label={t('Idade')} placeholder="27" keyboardType="number-pad" value={draft.age} onChangeText={(age) => set({ age: age.replace(/\D/g, '') })} />
       <Field
-        label={existing ? 'Ouro' : 'Ouro inicial'}
+        label={existing ? t('Ouro') : t('Ouro inicial')}
         icon={<CoinIcon />}
         keyboardType="number-pad"
         value={String(draft.gold)}
         onChangeText={(v) => set({ gold: toInt(v) })}
       />
 
-      <SectionHeader title="Vida, mana e estamina" />
+      <SectionHeader title={t('Vida, mana e estamina')} />
       {POOLS.map(({ current, max, label, icon }) =>
         existing ? (
           <View key={max} style={styles.poolRow}>
             <View style={{ flex: 1 }}>
-              <Field label={`${label} atual`} icon={icon} keyboardType="number-pad" value={String(draft[current])} onChangeText={(v) => set({ [current]: toInt(v) })} />
+              <Field label={t('{pool} atual', { pool: label })} icon={icon} keyboardType="number-pad" value={String(draft[current])} onChangeText={(v) => set({ [current]: toInt(v) })} />
             </View>
             <View style={{ flex: 1 }}>
-              <Field label={`${label} máxima`} keyboardType="number-pad" value={String(draft[max])} onChangeText={(v) => set({ [max]: toInt(v) })} />
+              <Field label={t('{pool} máxima', { pool: label })} keyboardType="number-pad" value={String(draft[max])} onChangeText={(v) => set({ [max]: toInt(v) })} />
             </View>
           </View>
         ) : (
-          <Field key={max} label={label} icon={icon} keyboardType="number-pad" value={String(draft[max])} onChangeText={(v) => set({ [max]: toInt(v) })} />
+          <Field key={max} label={t(label)} icon={icon} keyboardType="number-pad" value={String(draft[max])} onChangeText={(v) => set({ [max]: toInt(v) })} />
         ),
       )}
 
       <AttributeListEditor value={draft.attributes} onChange={(attributes) => set({ attributes })} />
-      <Muted>Use os atributos do seu Codex. Habilidades são liberadas pelo Mestre.</Muted>
-      <Button title="Salvar personagem" onPress={save} style={{ marginTop: 16 }} />
+      <Muted>{t('Use os atributos do seu Codex. Habilidades são liberadas pelo Mestre.')}</Muted>
+      <Button title={t('Salvar personagem')} onPress={save} style={{ marginTop: 16 }} />
     </Screen>
   );
 }

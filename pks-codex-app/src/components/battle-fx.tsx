@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, radius } from '@/lib/theme';
+import { useT } from '@/lib/i18n';
 import type { Battle, Hit } from '@/lib/types';
 
 /** Respeita a opção "Remover animações" do aparelho: sem tremor, giro ou pulso. */
@@ -21,11 +22,12 @@ function useReduceMotion() {
 type Float = { key: string; hit: Hit };
 
 const floatColor: Record<Hit['kind'], string> = { dano: colors.hp, cura: colors.success, errou: colors.textMuted };
-const floatText = (hit: Hit) =>
-  hit.kind === 'errou' ? 'Errou!' : `${hit.defended ? '🛡️ ' : ''}${hit.kind === 'cura' ? '+' : '−'}${hit.amount}`;
+const floatText = (hit: Hit, missed: string) =>
+  hit.kind === 'errou' ? missed : `${hit.defended ? '🛡️ ' : ''}${hit.kind === 'cura' ? '+' : '−'}${hit.amount}`;
 
 /** Número que sobe e some em cima do alvo. */
 function FloatLabel({ id, hit, index, onDone }: { id: string; hit: Hit; index: number; onDone: (id: string) => void }) {
+  const { t } = useT();
   const [progress] = useState(() => new Animated.Value(0));
   useEffect(() => {
     Animated.timing(progress, { toValue: 1, duration: 1200, easing: Easing.out(Easing.quad), useNativeDriver: true }).start(() => onDone(id));
@@ -44,7 +46,7 @@ function FloatLabel({ id, hit, index, onDone }: { id: string; hit: Hit; index: n
         },
       ]}
     >
-      {floatText(hit)}
+      {floatText(hit, t('Errou!'))}
     </Animated.Text>
   );
 }

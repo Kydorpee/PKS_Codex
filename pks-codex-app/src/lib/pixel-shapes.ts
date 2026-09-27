@@ -92,6 +92,30 @@ export const SHAPES = {
     '.OOFOO.',
     'O..O..O',
   ],
+  /** Elmo de cavaleiro: botão "Personagem" da tela inicial. */
+  helmet: [
+    '...OOOOO...', //
+    '..OHHFFFO..',
+    '.OHFFFFFFO.',
+    '.OFFFFFFFO.',
+    '.OAAAAAAAO.',
+    '.OFOOOOOFO.',
+    '.OFFFFFFFO.',
+    '.OFFFOFFFO.',
+    '..OFFOFFO..',
+    '...OOOOO...',
+  ],
+  /** Coroa: botão "Mestre" da tela inicial. */
+  crown: [
+    'O....O....O', //
+    'OO..OAO..OO',
+    'OFO.OFO.OFO',
+    'OFFOFFFOFFO',
+    'OHFFFFFFFFO',
+    'OFAFFAFFAFO',
+    'OFFFFFFFFFO',
+    'OOOOOOOOOOO',
+  ],
   coin: [
     '..OOO..', //
     '.OFFFO.',

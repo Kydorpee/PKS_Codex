@@ -8,5 +8,5 @@
     "rootDir": "src/lib",
     "outDir": ".test-build"
   },
-  "include": ["src/lib/engine.ts", "src/lib/rules.ts", "src/lib/types.ts", "src/lib/ids.ts", "src/lib/presets.ts", "src/lib/demo.ts", "src/lib/pixel-shapes.ts", "src/lib/theme.ts", "src/lib/sync.ts"]
+  "include": ["src/lib/engine.ts", "src/lib/rules.ts", "src/lib/types.ts", "src/lib/ids.ts", "src/lib/presets.ts", "src/lib/demo.ts", "src/lib/pixel-shapes.ts", "src/lib/theme.ts", "src/lib/sync.ts", "src/lib/i18n-core.ts", "src/lib/i18n-en.ts"]
 }

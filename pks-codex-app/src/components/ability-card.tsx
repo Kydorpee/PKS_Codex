@@ -5,9 +5,11 @@ import { colors, radius, spacing } from '@/lib/theme';
 import { costLabel, type Ability } from '@/lib/types';
 import { CostIcon, DamageStat } from './monster-stats';
 import { Card, Muted, text } from './ui';
+import { useT } from '@/lib/i18n';
 
 /** Exibição somente leitura de uma habilidade. */
 export function AbilityCard({ ability, children, onPress }: { ability: Ability; children?: ReactNode; onPress?: () => void }) {
+  const { t, tx } = useT();
   const magic = ability.kind === 'magica';
   return (
     <Card onPress={onPress}>
@@ -16,10 +18,10 @@ export function AbilityCard({ ability, children, onPress }: { ability: Ability; 
         <Text style={[text.strong, { flex: 1 }]}>{ability.name}</Text>
         <View style={[styles.pill, { borderColor: magic ? colors.mana : colors.stamina }]}>
           <CostIcon kind={ability.kind} />
-          <Text style={[styles.pillText, { color: magic ? colors.mana : colors.stamina }]}>{costLabel(ability)}</Text>
+          <Text style={[styles.pillText, { color: magic ? colors.mana : colors.stamina }]}>{tx(costLabel(ability))}</Text>
         </View>
       </View>
-      {!!ability.baseDamage && <DamageStat damage={ability.baseDamage}> de dano base</DamageStat>}
+      {!!ability.baseDamage && <DamageStat damage={ability.baseDamage}>{t(' de dano base')}</DamageStat>}
       {ability.status && (
         <Text style={[styles.damage, { color: STATUS_INFO[ability.status].color }]}>
           {STATUS_INFO[ability.status].emoji} {STATUS_INFO[ability.status].label}:{' '}

@@ -1,6 +1,7 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
+import { tNow } from './i18n';
 
 /** Lado da foto salva, em pixels. Pequena para caber no documento do Firestore (limite de 1 MB). */
 const PHOTO_SIZE = 256;
@@ -28,7 +29,7 @@ export async function toSharedPhoto(uri: string, size = PHOTO_SIZE): Promise<str
 export async function pickPhoto(size = PHOTO_SIZE): Promise<string | undefined> {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) {
-    Alert.alert('Permissão necessária', 'Permita o acesso às fotos para escolher uma imagem.');
+    Alert.alert(tNow('Permissão necessária'), tNow('Permita o acesso às fotos para escolher uma imagem.'));
     return undefined;
   }
 
@@ -41,6 +42,6 @@ export async function pickPhoto(size = PHOTO_SIZE): Promise<string | undefined> 
   if (result.canceled) return undefined;
 
   const photo = await toSharedPhoto(result.assets[0].uri, size);
-  if (!photo) Alert.alert('Não foi possível usar a foto', 'Tente outra imagem.');
+  if (!photo) Alert.alert(tNow('Não foi possível usar a foto'), tNow('Tente outra imagem.'));
   return photo;
 }

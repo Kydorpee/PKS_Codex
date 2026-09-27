@@ -7,6 +7,7 @@ import { newCodexCode, newId } from '@/lib/ids';
 import { itemSuggestions } from '@/lib/presets';
 import { useStore } from '@/lib/store';
 import type { Codex, Item } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 type CodexFields = Pick<Codex, 'name' | 'description' | 'startingItems' | 'allowFreeInventory'>;
 
@@ -25,6 +26,7 @@ const newCodex = (usedCodes: string[], fields: CodexFields): Codex => ({
 });
 
 export default function EditCodex() {
+  const { t } = useT();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { codexes, saveCodex, updateCodex } = useStore();
   const existing = codexes.find((c) => c.id === id);
@@ -36,7 +38,7 @@ export default function EditCodex() {
 
   const save = () => {
     if (!name.trim()) {
-      Alert.alert('Nome obrigatório', 'Dê um nome à campanha.');
+      Alert.alert(t('Nome obrigatório'), t('Dê um nome à campanha.'));
       return;
     }
     const items = startingItems
@@ -55,35 +57,35 @@ export default function EditCodex() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: existing ? 'Editar Codex' : 'Novo Codex' }} />
-      <Field label="Nome da campanha" placeholder="Ex.: A Queda de Valdoria" value={name} onChangeText={setName} />
+      <Stack.Screen options={{ title: existing ? t('Editar Codex') : t('Novo Codex') }} />
+      <Field label={t('Nome da campanha')} placeholder={t('Ex.: A Queda de Valdoria')} value={name} onChangeText={setName} />
       <Field
-        label="Descrição"
-        placeholder="Um resumo da história para os jogadores"
+        label={t('Descrição')}
+        placeholder={t('Um resumo da história para os jogadores')}
         multiline
         value={description}
         onChangeText={setDescription}
       />
       <ItemListEditor
-        title="Inventário inicial"
+        title={t('Inventário inicial')}
         value={startingItems}
         onChange={setStartingItems}
         suggestions={itemSuggestions(existing?.shops)}
       />
-      <Muted>Todo personagem que entrar no Codex recebe estes itens na bolsa (uma vez por personagem).</Muted>
-      <SectionHeader title="Regras" />
+      <Muted>{t('Todo personagem que entrar no Codex recebe estes itens na bolsa (uma vez por personagem).')}</Muted>
+      <SectionHeader title={t('Regras')} />
       <CheckRow
-        label="Inventário livre"
+        label={t('Inventário livre')}
         icon={<Text style={{ fontSize: 28 }}>🎒</Text>}
         detail={
           allowFreeInventory
-            ? 'Jogadores compram nas lojas e também podem adicionar e ajustar itens na própria bolsa.'
-            : 'Jogadores só recebem itens comprando nas lojas ou pelas mãos do Mestre.'
+            ? t('Jogadores compram nas lojas e também podem adicionar e ajustar itens na própria bolsa.')
+            : t('Jogadores só recebem itens comprando nas lojas ou pelas mãos do Mestre.')
         }
         checked={allowFreeInventory}
         onToggle={() => setAllowFreeInventory((v) => !v)}
       />
-      <Button title={existing ? 'Salvar' : 'Criar Codex'} onPress={save} style={{ marginTop: 16 }} />
+      <Button title={existing ? t('Salvar') : t('Criar Codex')} onPress={save} style={{ marginTop: 16 }} />
     </Screen>
   );
 }

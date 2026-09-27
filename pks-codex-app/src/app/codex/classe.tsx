@@ -7,9 +7,11 @@ import { newId } from '@/lib/ids';
 import { useStore } from '@/lib/store';
 import { spacing } from '@/lib/theme';
 import type { CodexClass } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 /** O Mestre cria/edita uma classe, vê as habilidades dela e libera a troca para os personagens. */
 export default function EditCodexClass() {
+  const { t } = useT();
   const { codexId, classId } = useLocalSearchParams<{ codexId: string; classId?: string }>();
   const { codexes, characters, saveClass, deleteClass } = useStore();
   const codex = codexes.find((c) => c.id === codexId);
@@ -33,7 +35,7 @@ export default function EditCodexClass() {
 
   const valid = () => {
     if (draft.name.trim()) return true;
-    Alert.alert('Nome obrigatório', 'Dê um nome à classe.');
+    Alert.alert(t('Nome obrigatório'), t('Dê um nome à classe.'));
     return false;
   };
 
@@ -59,10 +61,10 @@ export default function EditCodexClass() {
   };
 
   const confirmDelete = () =>
-    Alert.alert('Apagar classe?', 'As habilidades desta classe serão apagadas e quem a tinha ficará sem classe.', [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t('Apagar classe?'), t('As habilidades desta classe serão apagadas e quem a tinha ficará sem classe.'), [
+      { text: t('Cancelar'), style: 'cancel' },
       {
-        text: 'Apagar',
+        text: t('Apagar'),
         style: 'destructive',
         onPress: () => {
           router.back();
@@ -73,18 +75,18 @@ export default function EditCodexClass() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: existing ? 'Editar classe' : 'Nova classe' }} />
+      <Stack.Screen options={{ title: existing ? t('Editar classe') : t('Nova classe') }} />
 
       <View style={styles.inline}>
-        <Field label="Ícone" value={draft.emoji} maxLength={4} onChangeText={(emoji) => set({ emoji })} style={styles.emoji} />
+        <Field label={t('Ícone')} value={draft.emoji} maxLength={4} onChangeText={(emoji) => set({ emoji })} style={styles.emoji} />
         <View style={{ flex: 1 }}>
-          <Field label="Nome" placeholder="Ex.: Guerreiro, Mago, Ladino" value={draft.name} onChangeText={(name) => set({ name })} />
+          <Field label={t('Nome')} placeholder={t('Ex.: Guerreiro, Mago, Ladino')} value={draft.name} onChangeText={(name) => set({ name })} />
         </View>
       </View>
-      <Field label="Descrição" multiline value={draft.description} onChangeText={(description) => set({ description })} />
+      <Field label={t('Descrição')} multiline value={draft.description} onChangeText={(description) => set({ description })} />
 
-      <SectionHeader title="Habilidades da classe" action={<Button small variant="secondary" title="+ Nova" onPress={newAbility} />} />
-      <Muted>Todo personagem desta classe recebe estas habilidades. Ao trocar de classe, ele as perde.</Muted>
+      <SectionHeader title={t('Habilidades da classe')} action={<Button small variant="secondary" title={t('+ Nova')} onPress={newAbility} />} />
+      <Muted>{t('Todo personagem desta classe recebe estas habilidades. Ao trocar de classe, ele as perde.')}</Muted>
       {abilities.map((a) => (
         <AbilityCard
           key={a.id}
@@ -93,12 +95,12 @@ export default function EditCodexClass() {
         />
       ))}
 
-      <SectionHeader title="Quem pode escolher esta classe" />
-      <Muted>Só o Mestre libera classes. O jogador escolhe se troca a classe atual por esta.</Muted>
-      {players.length === 0 && <Muted>Nenhum jogador no Codex ainda.</Muted>}
+      <SectionHeader title={t('Quem pode escolher esta classe')} />
+      <Muted>{t('Só o Mestre libera classes. O jogador escolhe se troca a classe atual por esta.')}</Muted>
+      {players.length === 0 && <Muted>{t('Nenhum jogador no Codex ainda.')}</Muted>}
       {players.map((p) => {
         if (p.classId === draft.id) {
-          return <CheckRow key={p.id} label={p.name} uri={p.photoUri} detail="Classe atual" checked onToggle={() => {}} />;
+          return <CheckRow key={p.id} label={p.name} uri={p.photoUri} detail={t('Classe atual')} checked onToggle={() => {}} />;
         }
         const offered = draft.offeredTo.includes(p.id);
         const current = codex.classes.find((k) => k.id === p.classId);
@@ -109,8 +111,8 @@ export default function EditCodexClass() {
             uri={p.photoUri}
             detail={
               offered
-                ? 'Liberada — aguardando o jogador escolher'
-                : `Classe atual: ${current ? `${current.emoji} ${current.name}` : 'nenhuma'} · toque para liberar`
+                ? t('Liberada — aguardando o jogador escolher')
+                : t('Classe atual: {klass} · toque para liberar', { klass: current ? `${current.emoji} ${current.name}` : t('nenhuma') })
             }
             checked={offered}
             onToggle={() => toggleOffer(p.id)}
@@ -118,8 +120,8 @@ export default function EditCodexClass() {
         );
       })}
 
-      <Button title="Salvar classe" onPress={save} style={{ marginTop: spacing.lg }} />
-      {existing && <Button variant="danger" title="Apagar classe" onPress={confirmDelete} />}
+      <Button title={t('Salvar classe')} onPress={save} style={{ marginTop: spacing.lg }} />
+      {existing && <Button variant="danger" title={t('Apagar classe')} onPress={confirmDelete} />}
     </Screen>
   );
 }

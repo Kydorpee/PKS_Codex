@@ -10,9 +10,11 @@ import { MAX_LEVEL } from '@/lib/rules';
 import { useStore } from '@/lib/store';
 import { spacing } from '@/lib/theme';
 import type { Item } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 /** O Mestre entrega XP e itens aos personagens escolhidos, fora de batalha. */
 export default function GrantRewards() {
+  const { t, tx } = useT();
   const { codexId } = useLocalSearchParams<{ codexId: string }>();
   const { codexes, characters, act } = useStore();
   const codex = codexes.find((c) => c.id === codexId);
@@ -31,7 +33,7 @@ export default function GrantRewards() {
     const ids = selected.filter((id) => players.some((p) => p.id === id));
     const error = act((data) => grantRewards(data, codex.id, ids, toInt(xp), items));
     if (error) {
-      Alert.alert('Não foi possível entregar', error);
+      Alert.alert(t('Não foi possível entregar'), tx(error));
       return;
     }
     router.back();
@@ -39,38 +41,38 @@ export default function GrantRewards() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Dar XP e itens' }} />
+      <Stack.Screen options={{ title: t('Dar XP e itens') }} />
 
       <SectionHeader
-        title="Personagens"
+        title={t('Personagens')}
         action={
           players.length > 0 && (
             <Button
               small
               variant="secondary"
-              title={allSelected ? 'Nenhum' : 'Todos'}
+              title={allSelected ? t('Nenhum') : t('Todos')}
               onPress={() => setSelected(allSelected ? [] : players.map((p) => p.id))}
             />
           )
         }
       />
-      {players.length === 0 && <Muted>Nenhum personagem entrou no Codex ainda.</Muted>}
+      {players.length === 0 && <Muted>{t('Nenhum personagem entrou no Codex ainda.')}</Muted>}
       {players.map((p) => (
         <CheckRow
           key={p.id}
           label={p.name}
           uri={p.photoUri}
-          detail={p.level >= MAX_LEVEL ? `Nível ${p.level} (máximo)` : `Nível ${p.level}`}
+          detail={p.level >= MAX_LEVEL ? t('Nível {level} (máximo)', { level: p.level }) : t('Nível {level}', { level: p.level })}
           checked={selected.includes(p.id)}
           onToggle={() => toggle(p.id)}
         />
       ))}
 
-      <Field label="XP para cada um" icon={<StarIcon />} placeholder="0" keyboardType="number-pad" value={xp} onChangeText={setXp} />
+      <Field label={t('XP para cada um')} icon={<StarIcon />} placeholder="0" keyboardType="number-pad" value={xp} onChangeText={setXp} />
 
-      <ItemListEditor title="Itens para cada um" value={items} onChange={setItems} suggestions={itemSuggestions(codex.shops)} />
+      <ItemListEditor title={t('Itens para cada um')} value={items} onChange={setItems} suggestions={itemSuggestions(codex.shops)} />
 
-      <Button title="🎁 Entregar" disabled={selected.length === 0} onPress={grant} style={{ marginTop: spacing.lg }} />
+      <Button title={`🎁 ${t('Entregar')}`} disabled={selected.length === 0} onPress={grant} style={{ marginTop: spacing.lg }} />
     </Screen>
   );
 }

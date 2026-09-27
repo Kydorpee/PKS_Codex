@@ -8,6 +8,7 @@ import { colors, radius, spacing } from '@/lib/theme';
 import type { Character } from '@/lib/types';
 import { GoldAmount } from './monster-stats';
 import { Button, Muted, Paper, text } from './ui';
+import { useT } from '@/lib/i18n';
 
 export function InventoryModal({
   visible,
@@ -21,6 +22,7 @@ export function InventoryModal({
   freeEdit: boolean;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const { updateCharacter } = useStore();
   const [newItem, setNewItem] = useState('');
 
@@ -48,13 +50,13 @@ export function InventoryModal({
       <SafeAreaView style={styles.sheet}>
         <Paper>
           <View style={styles.header}>
-            <Text style={text.title}>🎒 Bolsa de itens</Text>
-            <Button small variant="ghost" title="Fechar" onPress={onClose} />
+            <Text style={text.title}>🎒 {t('Bolsa de itens')}</Text>
+            <Button small variant="ghost" title={t('Fechar')} onPress={onClose} />
           </View>
           <GoldAmount value={character.gold} size={20} suffix=" de ouro" />
 
           <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
-            {character.inventory.length === 0 && <Muted>A bolsa está vazia.</Muted>}
+            {character.inventory.length === 0 && <Muted>{t('A bolsa está vazia.')}</Muted>}
             {character.inventory.map((item) => (
               <View key={item.id} style={styles.item}>
                 {item.photoUri && <Image source={{ uri: item.photoUri }} style={styles.photo} />}
@@ -63,12 +65,12 @@ export function InventoryModal({
                   {!!item.description && <Muted>{item.description}</Muted>}
                 </View>
                 <View style={styles.qty}>
-                  <Pressable accessibilityLabel="Usar ou descartar um" hitSlop={8} onPress={() => changeQuantity(item.id, -1)} style={styles.qtyButton}>
+                  <Pressable accessibilityLabel={t('Usar ou descartar um')} hitSlop={8} onPress={() => changeQuantity(item.id, -1)} style={styles.qtyButton}>
                     <Text style={styles.qtyButtonText}>−</Text>
                   </Pressable>
                   <Text style={styles.qtyValue}>{item.quantity}</Text>
                   {freeEdit && (
-                    <Pressable accessibilityLabel="Aumentar" hitSlop={8} onPress={() => changeQuantity(item.id, 1)} style={styles.qtyButton}>
+                    <Pressable accessibilityLabel={t('Aumentar')} hitSlop={8} onPress={() => changeQuantity(item.id, 1)} style={styles.qtyButton}>
                       <Text style={styles.qtyButtonText}>+</Text>
                     </Pressable>
                   )}
@@ -81,17 +83,17 @@ export function InventoryModal({
             <View style={styles.addRow}>
               <TextInput
                 style={styles.input}
-                placeholder="Adicionar item..."
+                placeholder={t('Adicionar item...')}
                 placeholderTextColor={colors.textMuted}
                 value={newItem}
                 onChangeText={setNewItem}
                 onSubmitEditing={add}
                 returnKeyType="done"
               />
-              <Button title="Adicionar" disabled={!newItem.trim()} onPress={add} />
+              <Button title={t('Adicionar')} disabled={!newItem.trim()} onPress={add} />
             </View>
           ) : (
-            <Muted>Itens chegam comprando nas lojas ou pelas mãos do Mestre do Codex.</Muted>
+            <Muted>{t('Itens chegam comprando nas lojas ou pelas mãos do Mestre do Codex.')}</Muted>
           )}
         </Paper>
       </SafeAreaView>

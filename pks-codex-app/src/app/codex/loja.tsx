@@ -9,8 +9,10 @@ import { SHOP_PRESETS, shopFromPreset } from '@/lib/presets';
 import { useStore } from '@/lib/store';
 import { spacing } from '@/lib/theme';
 import type { Shop } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 export default function EditShop() {
+  const { t } = useT();
   const { codexId, shopId, preset } = useLocalSearchParams<{ codexId: string; shopId?: string; preset?: string }>();
   const { codexes, characters, updateCodex } = useStore();
   const codex = codexes.find((c) => c.id === codexId);
@@ -35,7 +37,7 @@ export default function EditShop() {
 
   const save = () => {
     if (!draft.name.trim()) {
-      Alert.alert('Nome obrigatório', 'Dê um nome ao local.');
+      Alert.alert(t('Nome obrigatório'), t('Dê um nome ao local.'));
       return;
     }
     const shop: Shop = {
@@ -52,10 +54,10 @@ export default function EditShop() {
   };
 
   const confirmDelete = () =>
-    Alert.alert('Apagar local?', `${draft.name} deixará de existir para todos os jogadores.`, [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t('Apagar local?'), t('{name} deixará de existir para todos os jogadores.', { name: draft.name }), [
+      { text: t('Cancelar'), style: 'cancel' },
       {
-        text: 'Apagar',
+        text: t('Apagar'),
         style: 'destructive',
         onPress: () => {
           updateCodex(codex.id, (c) => ({ ...c, shops: c.shops.filter((s) => s.id !== draft.id) }));
@@ -66,21 +68,21 @@ export default function EditShop() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: existing ? draft.name || 'Local' : 'Novo local' }} />
+      <Stack.Screen options={{ title: existing ? draft.name || t('Local') : t('Novo local') }} />
       <View style={styles.inline}>
         <View style={{ width: 80 }}>
-          <Field label="Ícone" value={draft.emoji} maxLength={4} onChangeText={(emoji) => set({ emoji })} style={styles.emoji} />
+          <Field label={t('Ícone')} value={draft.emoji} maxLength={4} onChangeText={(emoji) => set({ emoji })} style={styles.emoji} />
         </View>
         <View style={{ flex: 1 }}>
-          <Field label="Nome do local" placeholder="Ex.: Ferreiro do Porto" value={draft.name} onChangeText={(name) => set({ name })} />
+          <Field label={t('Nome do local')} placeholder={t('Ex.: Ferreiro do Porto')} value={draft.name} onChangeText={(name) => set({ name })} />
         </View>
       </View>
 
       <ShopItemListEditor value={draft.items} onChange={(items) => set({ items })} mounts={codex.mounts} />
 
-      <SectionHeader title="Quem pode ver" />
+      <SectionHeader title={t('Quem pode ver')} />
       {players.length === 0 ? (
-        <Muted>Nenhum jogador no Codex ainda. Quando entrarem, marque aqui quem pode ver este local.</Muted>
+        <Muted>{t('Nenhum jogador no Codex ainda. Quando entrarem, marque aqui quem pode ver este local.')}</Muted>
       ) : (
         players.map((p) => (
           <CheckRow
@@ -94,8 +96,8 @@ export default function EditShop() {
         ))
       )}
 
-      <Button title="Salvar local" onPress={save} style={{ marginTop: spacing.lg }} />
-      {existing && <Button variant="danger" title="Apagar local" onPress={confirmDelete} />}
+      <Button title={t('Salvar local')} onPress={save} style={{ marginTop: spacing.lg }} />
+      {existing && <Button variant="danger" title={t('Apagar local')} onPress={confirmDelete} />}
     </Screen>
   );
 }

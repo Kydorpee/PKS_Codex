@@ -9,6 +9,7 @@ import { resolveLevelUp, type LevelUpReward } from '@/lib/engine';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
 import { costLabel } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 function Stepper({
   label,
@@ -21,19 +22,20 @@ function Stepper({
   value: number;
   onChange: (v: number) => void;
 }) {
+  const { t } = useT();
   return (
     <View style={styles.stepper}>
       <View style={styles.stepLabel}>
         {icon}
         <Text style={text.body}>{label}</Text>
       </View>
-      <Pressable accessibilityLabel={`Diminuir ${label}`} hitSlop={8} onPress={() => onChange(value - 1)} style={styles.stepButton}>
+      <Pressable accessibilityLabel={t('Diminuir {what}', { what: label })} hitSlop={8} onPress={() => onChange(value - 1)} style={styles.stepButton}>
         <Text style={styles.stepText}>−</Text>
       </Pressable>
       <Text style={[styles.stepValue, value > 0 && { color: colors.success }, value < 0 && { color: colors.danger }]}>
         {value > 0 ? `+${value}` : value}
       </Text>
-      <Pressable accessibilityLabel={`Aumentar ${label}`} hitSlop={8} onPress={() => onChange(value + 1)} style={styles.stepButton}>
+      <Pressable accessibilityLabel={t('Aumentar {what}', { what: label })} hitSlop={8} onPress={() => onChange(value + 1)} style={styles.stepButton}>
         <Text style={styles.stepText}>+</Text>
       </Pressable>
     </View>
@@ -41,6 +43,7 @@ function Stepper({
 }
 
 export default function LevelUpEventScreen() {
+  const { t, tx } = useT();
   const { codexId, eventId } = useLocalSearchParams<{ codexId: string; eventId: string }>();
   const { codexes, characters, synced, act, updateCodex } = useStore();
   const codex = codexes.find((c) => c.id === codexId);
@@ -65,16 +68,16 @@ export default function LevelUpEventScreen() {
     };
     return (
       <Screen>
-        <Stack.Screen options={{ title: 'Evento de nível' }} />
+        <Stack.Screen options={{ title: t('Evento de nível') }} />
         {!synced ? (
-          <Muted>Carregando...</Muted>
+          <Muted>{t('Carregando...')}</Muted>
         ) : event ? (
           <>
-            <Muted>O personagem deste evento saiu do Codex ou foi apagado.</Muted>
-            <Button variant="danger" title="Descartar evento" onPress={discard} />
+            <Muted>{t('O personagem deste evento saiu do Codex ou foi apagado.')}</Muted>
+            <Button variant="danger" title={t('Descartar evento')} onPress={discard} />
           </>
         ) : (
-          <Muted>Evento não encontrado.</Muted>
+          <Muted>{t('Evento não encontrado.')}</Muted>
         )}
       </Screen>
     );
@@ -83,13 +86,13 @@ export default function LevelUpEventScreen() {
   if (event.resolved) {
     return (
       <Screen>
-        <Stack.Screen options={{ title: `Nível ${event.level}` }} />
+        <Stack.Screen options={{ title: t('Nível {level}', { level: event.level }) }} />
         <Card>
           <Text style={text.strong}>
-            🆙 {character.name} — nível {event.level}
+            🆙 {t('{name} — nível {level}', { name: character.name, level: event.level })}
           </Text>
           {event.rewards.map((r, i) => (
-            <Muted key={i}>• {r}</Muted>
+            <Muted key={i}>• {tx(r)}</Muted>
           ))}
         </Card>
       </Screen>
@@ -100,13 +103,13 @@ export default function LevelUpEventScreen() {
 
   const save = () => {
     const error = act((d) => resolveLevelUp(d, codex.id, event.id, reward));
-    if (error) Alert.alert('Não foi possível concluir', error);
+    if (error) Alert.alert(t('Não foi possível concluir'), tx(error));
     else router.back();
   };
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: `Nível ${event.level}` }} />
+      <Stack.Screen options={{ title: t('Nível {level}', { level: event.level }) }} />
       <Card>
         <View style={styles.header}>
           <Avatar uri={character.photoUri} name={character.name} size={56} />
@@ -118,22 +121,22 @@ export default function LevelUpEventScreen() {
         <CharacterBars character={character} />
       </Card>
 
-      <SectionHeader title="Aumentar status" />
+      <SectionHeader title={t('Aumentar status')} />
       <Card>
         <Stepper
-          label="Vida máxima"
+          label={t('Vida máxima')}
           icon={<PixelIcon shape="heart" color={colors.hp} />}
           value={reward.maxHp}
           onChange={(maxHp) => set({ maxHp })}
         />
         <Stepper
-          label="Mana máxima"
+          label={t('Mana máxima')}
           icon={<PixelIcon shape="drop" color={colors.mana} />}
           value={reward.maxMana}
           onChange={(maxMana) => set({ maxMana })}
         />
         <Stepper
-          label="Estamina máxima"
+          label={t('Estamina máxima')}
           icon={<PixelIcon shape="bolt" color={colors.stamina} />}
           value={reward.maxStamina}
           onChange={(maxStamina) => set({ maxStamina })}
@@ -149,12 +152,12 @@ export default function LevelUpEventScreen() {
       </Card>
 
       <SectionHeader
-        title="Novos atributos"
+        title={t('Novos atributos')}
         action={
           <Button
             small
             variant="secondary"
-            title="+ Atributo"
+            title={t('+ Atributo')}
             onPress={() => set({ newAttributes: [...reward.newAttributes, { name: '', value: 1 }] })}
           />
         }
@@ -163,7 +166,7 @@ export default function LevelUpEventScreen() {
         <View key={index} style={styles.inline}>
           <TextInput
             style={[styles.input, { flex: 1 }]}
-            placeholder="Nome (ex.: Carisma)"
+            placeholder={t('Nome (ex.: Carisma)')}
             placeholderTextColor={colors.textMuted}
             value={a.name}
             onChangeText={(name) => set({ newAttributes: reward.newAttributes.map((x, i) => (i === index ? { ...x, name } : x)) })}
@@ -179,8 +182,8 @@ export default function LevelUpEventScreen() {
         </View>
       ))}
 
-      <SectionHeader title="Liberar habilidades" />
-      {offerable.length === 0 && <Muted>Nenhuma habilidade nova disponível no Codex. Crie uma no painel do Codex.</Muted>}
+      <SectionHeader title={t('Liberar habilidades')} />
+      {offerable.length === 0 && <Muted>{t('Nenhuma habilidade nova disponível no Codex. Crie uma no painel do Codex.')}</Muted>}
       {offerable.map((a) => (
         <CheckRow
           key={a.id}
@@ -189,7 +192,7 @@ export default function LevelUpEventScreen() {
           detail={
             <View style={styles.abilityDetail}>
               <DamageStat damage={a.baseDamage} />
-              <IconStat icon={<CostIcon kind={a.kind} />}>{costLabel(a)}</IconStat>
+              <IconStat icon={<CostIcon kind={a.kind} />}>{tx(costLabel(a))}</IconStat>
             </View>
           }
           checked={reward.offerAbilityIds.includes(a.id)}
@@ -202,11 +205,11 @@ export default function LevelUpEventScreen() {
           }
         />
       ))}
-      <Muted>O jogador ainda escolhe se aceita cada habilidade oferecida.</Muted>
+      <Muted>{t('O jogador ainda escolhe se aceita cada habilidade oferecida.')}</Muted>
 
-      <Field label="Mensagem / evento" placeholder="Ex.: Você despertou o poder do fogo!" multiline value={reward.note} onChangeText={(note) => set({ note })} />
+      <Field label={t('Mensagem / evento')} placeholder={t('Ex.: Você despertou o poder do fogo!')} multiline value={reward.note} onChangeText={(note) => set({ note })} />
 
-      <Button title="Concluir evento de nível" onPress={save} style={{ marginTop: spacing.lg }} />
+      <Button title={t('Concluir evento de nível')} onPress={save} style={{ marginTop: spacing.lg }} />
     </Screen>
   );
 }

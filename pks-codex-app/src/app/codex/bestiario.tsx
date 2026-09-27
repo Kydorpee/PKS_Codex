@@ -5,8 +5,10 @@ import { Avatar, Button, Card, Muted, Screen, text } from '@/components/ui';
 import { MONSTER_PRESETS, monsterFromPreset } from '@/lib/presets';
 import { useStore } from '@/lib/store';
 import { spacing } from '@/lib/theme';
+import { useT } from '@/lib/i18n';
 
 export default function Bestiary() {
+  const { t } = useT();
   const { codexId } = useLocalSearchParams<{ codexId: string }>();
   const { updateCodex } = useStore();
 
@@ -21,8 +23,8 @@ export default function Bestiary() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Bestiário IA' }} />
-      <Muted>Monstros gerados por IA, prontos para usar. Depois de adicionar você pode editar tudo.</Muted>
+      <Stack.Screen options={{ title: t('Bestiário IA') }} />
+      <Muted>{t('Monstros gerados por IA, prontos para usar. Depois de adicionar você pode editar tudo.')}</Muted>
       {MONSTER_PRESETS.map((p) => (
         <Card key={p.key}>
           <View style={styles.row}>
@@ -33,7 +35,7 @@ export default function Bestiary() {
               <Muted>{p.abilities.map((a) => a[0]).join(', ')}</Muted>
             </View>
           </View>
-          <Button small title="Adicionar ao Codex" onPress={() => add(p.key)} />
+          <Button small title={t('Adicionar ao Codex')} onPress={() => add(p.key)} />
         </Card>
       ))}
     </Screen>

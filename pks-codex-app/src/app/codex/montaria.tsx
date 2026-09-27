@@ -7,9 +7,11 @@ import { newId } from '@/lib/ids';
 import { useStore } from '@/lib/store';
 import { spacing } from '@/lib/theme';
 import type { Mount } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 /** O Mestre cria/edita uma montaria (foto e habilidades) e escolhe quem a tem. Também pode vendê-la numa loja. */
 export default function EditMount() {
+  const { t } = useT();
   const { codexId, mountId } = useLocalSearchParams<{ codexId: string; mountId?: string }>();
   const { codexes, characters, saveMount, deleteMount } = useStore();
   const codex = codexes.find((c) => c.id === codexId);
@@ -26,7 +28,7 @@ export default function EditMount() {
 
   const save = () => {
     if (!draft.name.trim()) {
-      Alert.alert('Nome obrigatório', 'Dê um nome à montaria.');
+      Alert.alert(t('Nome obrigatório'), t('Dê um nome à montaria.'));
       return;
     }
     saveMount(
@@ -43,10 +45,10 @@ export default function EditMount() {
   };
 
   const confirmDelete = () =>
-    Alert.alert('Apagar montaria?', `${draft.name} sai de todos os personagens e das lojas.`, [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t('Apagar montaria?'), t('{name} sai de todos os personagens e das lojas.', { name: draft.name }), [
+      { text: t('Cancelar'), style: 'cancel' },
       {
-        text: 'Apagar',
+        text: t('Apagar'),
         style: 'destructive',
         onPress: () => {
           router.back();
@@ -57,45 +59,45 @@ export default function EditMount() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: existing ? draft.name || 'Montaria' : 'Nova montaria' }} />
+      <Stack.Screen options={{ title: existing ? draft.name || t('Montaria') : t('Nova montaria') }} />
       <View style={styles.inline}>
         <PhotoThumb uri={draft.photoUri} onChange={(photoUri) => set({ photoUri })} size={88} placeholder={draft.emoji || '🐎'} />
         <View style={{ flex: 1, gap: spacing.sm }}>
           <View style={styles.inline}>
             <View style={{ width: 72 }}>
-              <Field label="Ícone" value={draft.emoji} maxLength={4} onChangeText={(emoji) => set({ emoji })} style={styles.emoji} />
+              <Field label={t('Ícone')} value={draft.emoji} maxLength={4} onChangeText={(emoji) => set({ emoji })} style={styles.emoji} />
             </View>
             <View style={{ flex: 1 }}>
-              <Field label="Nome" placeholder="Ex.: Cavalo de Guerra" value={draft.name} onChangeText={(name) => set({ name })} />
+              <Field label={t('Nome')} placeholder={t('Ex.: Cavalo de Guerra')} value={draft.name} onChangeText={(name) => set({ name })} />
             </View>
           </View>
         </View>
       </View>
-      <Field label="Descrição" placeholder="Como é, de onde veio..." multiline value={draft.description} onChangeText={(description) => set({ description })} />
+      <Field label={t('Descrição')} placeholder={t('Como é, de onde veio...')} multiline value={draft.description} onChangeText={(description) => set({ description })} />
 
       <AbilityListEditor value={draft.abilities} onChange={(abilities) => set({ abilities })} />
-      <Muted>Quem tem a montaria usa estas habilidades na batalha, na categoria “Montaria”.</Muted>
+      <Muted>{t('Quem tem a montaria usa estas habilidades na batalha, na categoria “Montaria”.')}</Muted>
 
-      <SectionHeader title="Quem tem esta montaria" />
-      {players.length === 0 && <Muted>Nenhum jogador no Codex ainda.</Muted>}
+      <SectionHeader title={t('Quem tem esta montaria')} />
+      {players.length === 0 && <Muted>{t('Nenhum jogador no Codex ainda.')}</Muted>}
       {players.map((p) => (
         <CheckRow
           key={p.id}
           label={p.name}
           uri={p.photoUri}
-          detail={owners.includes(p.id) ? 'Tem a montaria' : 'Toque para dar a montaria'}
+          detail={owners.includes(p.id) ? t('Tem a montaria') : t('Toque para dar a montaria')}
           checked={owners.includes(p.id)}
           onToggle={() => toggleOwner(p.id)}
         />
       ))}
       <Muted>
         {inShops.length
-          ? `À venda em: ${inShops.map((s) => `${s.emoji} ${s.name}`).join(', ')}.`
-          : 'Para vender, abra um local (loja) e toque em "+ montaria" nos itens à venda.'}
+          ? t('À venda em: {shops}.', { shops: inShops.map((s) => `${s.emoji} ${s.name}`).join(', ') })
+          : t('Para vender, abra um local (loja) e toque em "+ montaria" nos itens à venda.')}
       </Muted>
 
-      <Button title="Salvar montaria" onPress={save} style={{ marginTop: spacing.lg }} />
-      {existing && <Button variant="danger" title="Apagar montaria" onPress={confirmDelete} />}
+      <Button title={t('Salvar montaria')} onPress={save} style={{ marginTop: spacing.lg }} />
+      {existing && <Button variant="danger" title={t('Apagar montaria')} onPress={confirmDelete} />}
     </Screen>
   );
 }

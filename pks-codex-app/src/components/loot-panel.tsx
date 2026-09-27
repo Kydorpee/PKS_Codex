@@ -4,6 +4,7 @@ import { currentLooter, foeNames, passLoot, takeLoot, type Data, type Result } f
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
 import type { Battle, Codex } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 /** Espólios abertos (com vez de alguém) de um Codex. */
 export const openLoots = (codex: Codex) => codex.battles.filter((b) => b.loot && !b.loot.done);
@@ -14,6 +15,7 @@ export const openLoots = (codex: Codex) => codex.battles.filter((b) => b.loot &&
  * Sem `characterId`, mostra a visão do Mestre (que pode pular a vez de quem não responde).
  */
 export function LootPanel({ codex, battle, characterId }: { codex: Codex; battle: Battle; characterId?: string }) {
+  const { t, tx } = useT();
   const { characters, act } = useStore();
   const loot = battle.loot;
   const from = foeNames(battle, codex.monsters);
@@ -21,7 +23,7 @@ export function LootPanel({ codex, battle, characterId }: { codex: Codex; battle
 
   const run = (rule: (d: Data) => Result) => {
     const error = act(rule);
-    if (error) Alert.alert('Espólios', error);
+    if (error) Alert.alert(t('Espólios'), tx(error));
   };
   const looter = currentLooter(battle);
   const myTurn = !!characterId && looter === characterId;
@@ -30,28 +32,28 @@ export function LootPanel({ codex, battle, characterId }: { codex: Codex; battle
   if (loot.done) {
     return (
       <Card>
-        <Text style={text.strong}>💰 Espólios de {from}</Text>
-        <Muted>Todos tiveram a sua vez. Os itens que sobraram foram apagados.</Muted>
+        <Text style={text.strong}>💰 {t('Espólios de {from}', { from })}</Text>
+        <Muted>{t('Todos tiveram a sua vez. Os itens que sobraram foram apagados.')}</Muted>
       </Card>
     );
   }
 
   const confirmPass = () =>
     Alert.alert(
-      'Passar a vez?',
+      t('Passar a vez?'),
       loot.turnIndex === loot.order.length - 1
-        ? 'Você é o último: os itens que sobrarem serão apagados.'
-        : `A vez passa para ${name(loot.order[loot.turnIndex + 1])}. Você não poderá pegar mais itens.`,
+        ? t('Você é o último: os itens que sobrarem serão apagados.')
+        : t('A vez passa para {name}. Você não poderá pegar mais itens.', { name: name(loot.order[loot.turnIndex + 1]) }),
       [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Passar', onPress: () => run((d) => passLoot(d, codex.id, battle.id, characterId)) },
+        { text: t('Cancelar'), style: 'cancel' },
+        { text: t('Passar'), onPress: () => run((d) => passLoot(d, codex.id, battle.id, characterId)) },
       ],
     );
 
   return (
     <Card style={myTurn && styles.mine}>
-      <Text style={text.accentStrong}>💰 Espólios de {from}</Text>
-      <Muted>Itens compartilhados: cada um pega na sua vez, na ordem da batalha. Ao fim, o que sobrar é apagado.</Muted>
+      <Text style={text.accentStrong}>💰 {t('Espólios de {from}', { from })}</Text>
+      <Muted>{t('Itens compartilhados: cada um pega na sua vez, na ordem da batalha. Ao fim, o que sobrar é apagado.')}</Muted>
 
       <View style={styles.order}>
         {loot.order.map((id, i) => (
@@ -64,9 +66,9 @@ export function LootPanel({ codex, battle, characterId }: { codex: Codex; battle
         ))}
       </View>
 
-      <Text style={text.strong}>{myTurn ? '⭐ Sua vez! Pegue o que quiser e passe a vez.' : `Vez de ${name(looter ?? '')}`}</Text>
+      <Text style={text.strong}>{myTurn ? `⭐ ${t('Sua vez! Pegue o que quiser e passe a vez.')}` : t('Vez de {name}', { name: name(looter ?? '') })}</Text>
 
-      {loot.items.length === 0 && <Muted>Não sobrou nenhum item.</Muted>}
+      {loot.items.length === 0 && <Muted>{t('Não sobrou nenhum item.')}</Muted>}
       {loot.items.map((item) => (
         <View key={item.id} style={styles.item}>
           {item.photoUri && <Image source={{ uri: item.photoUri }} style={styles.photo} />}
@@ -76,13 +78,13 @@ export function LootPanel({ codex, battle, characterId }: { codex: Codex; battle
             </Text>
             {!!item.description && <Muted>{item.description}</Muted>}
           </View>
-          {myTurn && <Button small title="Pegar" onPress={() => run((d) => takeLoot(d, codex.id, battle.id, characterId!, item.id))} />}
+          {myTurn && <Button small title={t('Pegar')} onPress={() => run((d) => takeLoot(d, codex.id, battle.id, characterId!, item.id))} />}
         </View>
       ))}
 
-      {myTurn && <Button variant="secondary" title="Passar a vez" onPress={confirmPass} />}
+      {myTurn && <Button variant="secondary" title={t('Passar a vez')} onPress={confirmPass} />}
       {!characterId && looter && (
-        <Button small variant="secondary" title={`⏭️ Pular a vez de ${name(looter)}`} onPress={() => run((d) => passLoot(d, codex.id, battle.id))} />
+        <Button small variant="secondary" title={`⏭️ ${t('Pular a vez de {name}', { name: name(looter) })}`} onPress={() => run((d) => passLoot(d, codex.id, battle.id))} />
       )}
     </Card>
   );

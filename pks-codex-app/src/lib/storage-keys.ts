@@ -9,3 +9,5 @@ export const MIGRATED_KEY = 'pks-codex/migrated-to-firebase';
 export const CACHE_CHARACTERS_KEY = 'pks-codex/cache/characters';
 /** Conta dona da cópia acima: se mudar, a cópia é descartada. */
 export const CACHE_UID_KEY = 'pks-codex/cache/uid';
+/** Idioma escolhido nas opções da tela inicial ('pt' ou 'en'). */
+export const LANGUAGE_KEY = 'pks-codex/language';

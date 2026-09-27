@@ -4,6 +4,7 @@ import { DICE, STATUS_INFO } from '@/lib/rules';
 import { colors, hpColor, radius, spacing } from '@/lib/theme';
 import { diceLabel, type Battle, type Character, type Foe, type LogTone, type Monster } from '@/lib/types';
 import { HitFx, Pulse, RollingDie } from './battle-fx';
+import { useT } from '@/lib/i18n';
 import { CharacterBars } from './character-stats';
 import { BlastIcon, DamageStat, IconStat, SHIELD_COLOR } from './monster-stats';
 import { PixelIcon } from './pixel-icon';
@@ -26,6 +27,7 @@ function FoeRow({
   compact: boolean;
   current: boolean;
 }) {
+  const { t } = useT();
   const ability = monster.abilities.find((a) => a.id === foe.abilityId);
   const hasSpeech = !!ability || !!foe.condition;
   const dead = foe.hp <= 0;
@@ -45,7 +47,7 @@ function FoeRow({
           <View style={styles.balloonTail} />
           <View style={styles.balloon}>
             {dead ? (
-              <Text style={styles.balloonText}>☠️ Derrotado</Text>
+              <Text style={styles.balloonText}>☠️ {t('Derrotado')}</Text>
             ) : hasSpeech ? (
               <>
                 {ability && (
@@ -59,7 +61,7 @@ function FoeRow({
                     )}
                   </View>
                 )}
-                {!!foe.condition && <Text style={styles.balloonCondition}>Condição: {foe.condition}</Text>}
+                {!!foe.condition && <Text style={styles.balloonCondition}>{t('Condição: {c}', { c: foe.condition })}</Text>}
               </>
             ) : (
               <Text style={styles.balloonCondition}>...</Text>
@@ -73,7 +75,7 @@ function FoeRow({
         {monster.name}
       </Text>
       <Bar
-        label="Vida"
+        label={t('Vida')}
         value={foe.hp}
         max={foe.maxHp}
         color={hpColor(foe.hp, foe.maxHp)}
@@ -84,7 +86,7 @@ function FoeRow({
         <View style={styles.statusRow}>
           {foe.statuses.map((s) => (
             <Text key={s.type} style={[styles.systemStatus, { color: STATUS_INFO[s.type].color }]}>
-              🔒 {STATUS_INFO[s.type].emoji} {STATUS_INFO[s.type].label} · {s.roundsLeft}t
+              🔒 {STATUS_INFO[s.type].emoji} {t(STATUS_INFO[s.type].label)} · {s.roundsLeft}t
             </Text>
           ))}
         </View>
@@ -92,7 +94,7 @@ function FoeRow({
 
       {reveal && (
         <View style={styles.reveal}>
-          <IconStat icon={<PixelIcon shape="shield" color={SHIELD_COLOR} />}>Armadura {monster.armor}</IconStat>
+          <IconStat icon={<PixelIcon shape="shield" color={SHIELD_COLOR} />}>{t('Armadura {n}', { n: monster.armor })}</IconStat>
           {monster.abilities.map((a) => {
             const status = a.status ? ` — ${STATUS_INFO[a.status].emoji} ${a.statusChance}%` : '';
             return a.baseDamage ? (
@@ -155,13 +157,14 @@ export function DicePanel({
   canRoll: boolean;
   onRoll: (sides: number) => void;
 }) {
+  const { t } = useT();
   return (
     <Card style={styles.dice}>
       <View style={styles.diceRow}>
         <RollingDie roll={roll} style={styles.die} textStyle={styles.dieValue} />
         <View style={{ flex: 1 }}>
-          <Text style={text.strong}>🎲 Dado virtual</Text>
-          <Muted>{roll ? `${roll.by} rolou d${roll.sides}` : canRoll ? 'Escolha um dado para girar.' : 'Disponível no seu turno.'}</Muted>
+          <Text style={text.strong}>🎲 {t('Dado virtual')}</Text>
+          <Muted>{roll ? t('{by} rolou d{sides}', { by: roll.by, sides: roll.sides }) : canRoll ? t('Escolha um dado para girar.') : t('Disponível no seu turno.')}</Muted>
         </View>
       </View>
       {canRoll && (
@@ -170,7 +173,7 @@ export function DicePanel({
             <Pressable
               key={sides}
               accessibilityRole="button"
-              accessibilityLabel={`Rolar d${sides}`}
+              accessibilityLabel={t('Rolar d{sides}', { sides })}
               onPress={() => onRoll(sides)}
               style={({ pressed }) => [styles.diceChip, pressed && { opacity: 0.7 }]}
             >
@@ -184,6 +187,7 @@ export function DicePanel({
 }
 
 export function TurnOrder({ battle, monsters, characters }: { battle: Battle; monsters: Monster[]; characters: Character[] }) {
+  const { t } = useT();
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.turns}>
       {battle.order.map((id, index) => {
@@ -202,7 +206,7 @@ export function TurnOrder({ battle, monsters, characters }: { battle: Battle; mo
             )}
             <Text style={styles.turnName} numberOfLines={1}>
               {out ? (p?.fled ? '🏃 ' : '☠️ ') : p?.defense ? '🛡️ ' : ''}
-              {foe ? (monster?.name ?? 'Monstro') : (c?.name ?? '?')}
+              {foe ? (monster?.name ?? t('Monstro')) : (c?.name ?? '?')}
             </Text>
             <Text style={styles.turnInit}>🎲 {battle.initiatives[id]}</Text>
           </Pulse>
@@ -213,6 +217,7 @@ export function TurnOrder({ battle, monsters, characters }: { battle: Battle; mo
 }
 
 export function ParticipantList({ battle, characters }: { battle: Battle; characters: Character[] }) {
+  const { t } = useT();
   return (
     <>
       {battle.participants.map((p) => {
@@ -228,8 +233,8 @@ export function ParticipantList({ battle, characters }: { battle: Battle; charac
                     {c.name} {p.fled ? '🏃' : c.hp <= 0 ? '☠️' : p.defense ? '🛡️' : ''}
                   </Text>
                   <Muted>
-                    Nível {c.level} · dano causado: {p.damageDealt}
-                    {p.defense ? ` · defendendo (🎲 ${diceLabel(p.defense)})` : ''}
+                    {t('Nível {level} · dano causado: {dmg}', { level: c.level, dmg: p.damageDealt })}
+                    {p.defense ? ` · ${t('defendendo (🎲 {roll})', { roll: diceLabel(p.defense) })}` : ''}
                   </Muted>
                 </View>
               </View>
@@ -251,12 +256,13 @@ const toneColor: Record<LogTone, string> = {
 };
 
 export function BattleLog({ battle }: { battle: Battle }) {
+  const { tx } = useT();
   const entries = battle.log.slice(-40).reverse();
   return (
     <Card>
       {entries.map((e) => (
         <Text key={e.id} style={[styles.logLine, { color: e.status ? STATUS_INFO[e.status].color : toneColor[e.tone] }]}>
-          {e.text}
+          {tx(e.text)}
         </Text>
       ))}
     </Card>

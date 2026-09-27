@@ -24,6 +24,7 @@ import { Avatar, Button, Card, CheckRow, Muted, Screen, SectionHeader, Stat, tex
 import { ABILITY_PRESETS, abilityFromSeed } from '@/lib/presets';
 import { characterDefaults, rollDie, STATUS_INFO, STATUS_TYPES, xpToNext } from '@/lib/rules';
 import { colors, palette, radius, spacing } from '@/lib/theme';
+import { useT } from '@/lib/i18n';
 import type { Battle, Character } from '@/lib/types';
 
 const ICONS: Record<PixelShape, { label: string; color: string; accent?: string }> = {
@@ -36,6 +37,8 @@ const ICONS: Record<PixelShape, { label: string; color: string; accent?: string 
   sword: { label: 'Custo físico', color: BLADE_COLOR },
   staff: { label: 'Custo mágico', color: WOOD_COLOR, accent: colors.mana },
   explosion: { label: 'Dano base', color: BLAST_COLOR, accent: BLAST_CORE },
+  helmet: { label: 'Personagem', color: '#8FA3B0', accent: colors.primary },
+  crown: { label: 'Mestre', color: colors.gold, accent: colors.primary },
   coin: { label: 'Ouro', color: COIN_RIM, accent: COIN_FACE },
 };
 
@@ -56,6 +59,7 @@ const sample = (() => {
 
 /** Tela para ver e testar todos os componentes visuais do app. */
 export default function Gallery() {
+  const { t, tx: tr } = useT();
   const [hero, setHero] = useState<Character>(() => ({
     id: 'galeria',
     name: 'Herói de teste',
@@ -73,31 +77,31 @@ export default function Gallery() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Galeria visual' }} />
-      <Muted>Todos os componentes visuais do PKS Codex. Use os botões para testar as animações.</Muted>
+      <Stack.Screen options={{ title: t('Galeria visual') }} />
+      <Muted>{t('Todos os componentes visuais do PKS Codex. Use os botões para testar as animações.')}</Muted>
 
-      <SectionHeader title="Paleta" />
+      <SectionHeader title={t('Paleta')} />
       <View style={styles.grid}>
         {(Object.keys(palette) as (keyof typeof palette)[]).map((key) => (
           <View key={key} style={styles.swatchCell}>
             <View style={[styles.swatch, { backgroundColor: palette[key] }]} />
-            <Muted>{PALETTE_NAMES[key]}</Muted>
+            <Muted>{t(PALETTE_NAMES[key])}</Muted>
             <Muted>{palette[key]}</Muted>
           </View>
         ))}
       </View>
 
-      <SectionHeader title="Ícones em pixel art" />
+      <SectionHeader title={t('Ícones em pixel art')} />
       <Card>
         <View style={styles.grid}>
           {PIXEL_SHAPES.map((shape) => (
             <View key={shape} style={styles.iconCell}>
               <PixelIcon shape={shape} pixel={5} color={ICONS[shape].color} accent={ICONS[shape].accent} />
-              <Muted>{ICONS[shape].label}</Muted>
+              <Muted>{t(ICONS[shape].label)}</Muted>
             </View>
           ))}
         </View>
-        <Muted>Ícones de barra esvaziam conforme o valor:</Muted>
+        <Muted>{t('Ícones de barra esvaziam conforme o valor:')}</Muted>
         <View style={styles.inline}>
           {[1, 0.75, 0.5, 0.25, 0].map((pct) => (
             <View key={pct} style={styles.iconCell}>
@@ -108,106 +112,106 @@ export default function Gallery() {
         </View>
       </Card>
 
-      <SectionHeader title="Barras (interativas)" />
+      <SectionHeader title={t('Barras (interativas)')} />
       <Card>
         <CharacterBars character={hero} showXp />
         <View style={styles.wrap}>
-          <Button small variant="danger" title="Dano −5" onPress={() => change((c) => ({ hp: clamp(c.hp - 5, c.maxHp) }))} />
-          <Button small title="Cura +5" onPress={() => change((c) => ({ hp: clamp(c.hp + 5, c.maxHp) }))} />
+          <Button small variant="danger" title={t('Dano −5')} onPress={() => change((c) => ({ hp: clamp(c.hp - 5, c.maxHp) }))} />
+          <Button small title={t('Cura +5')} onPress={() => change((c) => ({ hp: clamp(c.hp + 5, c.maxHp) }))} />
           <Button
             small
             variant="secondary"
-            title="Veneno (1d4)"
+            title={t('Veneno (1d4)')}
             onPress={() => change((c) => ({ hp: clamp(c.hp - rollDie(4), c.maxHp) }))}
           />
           <Button
             small
             variant="secondary"
             icon={<PixelIcon shape="staff" color={WOOD_COLOR} accent={colors.mana} />}
-            title="Magia −3"
+            title={t('Magia −3')}
             onPress={() => change((c) => ({ mana: clamp(c.mana - 3, c.maxMana) }))}
           />
           <Button
             small
             variant="secondary"
             icon={<PixelIcon shape="sword" color={BLADE_COLOR} />}
-            title="Golpe −2"
+            title={t('Golpe −2')}
             onPress={() => change((c) => ({ stamina: clamp(c.stamina - 2, c.maxStamina) }))}
           />
           <Button
             small
             variant="secondary"
             icon={<StarIcon />}
-            title="XP +30"
+            title={t('XP +30')}
             onPress={() => change((c) => ({ xp: Math.min(xpToNext(c.level), c.xp + 30) }))}
           />
           <Button
             small
             variant="ghost"
-            title="Restaurar"
+            title={t('Restaurar')}
             onPress={() => change((c) => ({ hp: c.maxHp, mana: c.maxMana, stamina: c.maxStamina, xp: 0 }))}
           />
         </View>
       </Card>
 
-      <SectionHeader title="Status" />
+      <SectionHeader title={t('Status')} />
       <Card>
         <StatusBadges statuses={STATUS_TYPES.map((type) => ({ type, roundsLeft: STATUS_INFO[type].rounds }))} />
         {STATUS_TYPES.map((type) => (
           <Text key={type} style={{ color: STATUS_INFO[type].color }}>
-            {STATUS_INFO[type].emoji} {STATUS_INFO[type].label}: {STATUS_INFO[type].effect}
+            {STATUS_INFO[type].emoji} {t(STATUS_INFO[type].label)}: {t(STATUS_INFO[type].effect)}
           </Text>
         ))}
       </Card>
 
-      <SectionHeader title="Dado virtual" />
-      <DicePanel lastRoll={lastRoll} canRoll onRoll={(sides) => setLastRoll({ sides, value: rollDie(sides), by: 'Galeria' })} />
+      <SectionHeader title={t('Dado virtual')} />
+      <DicePanel lastRoll={lastRoll} canRoll onRoll={(sides) => setLastRoll({ id: String(Date.now()), sides, value: rollDie(sides), by: t('Galeria') })} />
 
-      <SectionHeader title="Cenários de batalha" />
+      <SectionHeader title={t('Cenários de batalha')} />
       <View style={styles.grid}>
         {TERRAINS.map((t) => (
           <View key={t.key} style={styles.sceneCell}>
             <View style={styles.scene}>
               <PixelScene terrain={t.key} />
             </View>
-            <Muted>{t.label}</Muted>
+            <Muted>{tr(t.label)}</Muted>
           </View>
         ))}
       </View>
 
-      <SectionHeader title="Botões" />
-      <Button title="Principal" onPress={() => {}} />
-      <Button variant="secondary" title="Secundário" onPress={() => {}} />
-      <Button variant="secondary" icon={<CoinIcon />} title="Com ícone" onPress={() => {}} />
-      <Button variant="danger" title="Perigo" onPress={() => {}} />
-      <Button title="Desabilitado" disabled onPress={() => {}} />
-      <Button variant="ghost" title="Discreto" onPress={() => {}} />
+      <SectionHeader title={t('Botões')} />
+      <Button title={t('Principal')} onPress={() => {}} />
+      <Button variant="secondary" title={t('Secundário')} onPress={() => {}} />
+      <Button variant="secondary" icon={<CoinIcon />} title={t('Com ícone')} onPress={() => {}} />
+      <Button variant="danger" title={t('Perigo')} onPress={() => {}} />
+      <Button title={t('Desabilitado')} disabled onPress={() => {}} />
+      <Button variant="ghost" title={t('Discreto')} onPress={() => {}} />
 
-      <SectionHeader title="Habilidades" />
+      <SectionHeader title={t('Habilidades')} />
       <AbilityCard ability={sample.magic} />
       <AbilityCard ability={sample.physical} />
 
-      <SectionHeader title="Informações" />
+      <SectionHeader title={t('Informações')} />
       <Card>
         <View style={styles.inline}>
           <Avatar name="Aria" size={48} />
           <Avatar emoji="🐉" size={48} />
           <View style={{ flex: 1, gap: spacing.xs }}>
-            <Text style={text.strong}>Texto forte</Text>
-            <Text style={text.accent}>Destaque</Text>
-            <Muted>Texto secundário</Muted>
+            <Text style={text.strong}>{t('Texto forte')}</Text>
+            <Text style={text.accent}>{t('Destaque')}</Text>
+            <Muted>{t('Texto secundário')}</Muted>
           </View>
         </View>
-        <MonsterStats hitPoints={84} armor={15} extra="2 habilidade(s)" />
-        <DamageStat damage="2d6 + 3"> de dano base</DamageStat>
+        <MonsterStats hitPoints={84} armor={15} extra={t('{n} habilidade(s)', { n: 2 })} />
+        <DamageStat damage="2d6 + 3">{t(' de dano base')}</DamageStat>
         <GoldAmount value={250} />
       </Card>
       <View style={styles.inline}>
-        <Stat label="Ouro" value={250} icon={<CoinIcon pixel={3} />} />
-        <Stat label="Força" value={12} />
-        <Stat label="Agilidade" value={9} />
+        <Stat label={t('Ouro')} value={250} icon={<CoinIcon pixel={3} />} />
+        <Stat label={t('Força')} value={12} />
+        <Stat label={t('Agilidade')} value={9} />
       </View>
-      <CheckRow label="Opção marcável" detail="Toque para alternar" checked={checked} onToggle={() => setChecked((v) => !v)} />
+      <CheckRow label={t('Opção marcável')} detail={t('Toque para alternar')} checked={checked} onToggle={() => setChecked((v) => !v)} />
     </Screen>
   );
 }

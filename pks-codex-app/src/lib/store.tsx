@@ -17,6 +17,7 @@ import { Alert } from 'react-native';
 import type { Data, Result } from './engine';
 import { firebase } from './firebase';
 import { newId } from './ids';
+import { tNow, txNow } from './i18n';
 import { toSharedPhoto } from './photos';
 import { addToInventory, applyClass, normalizeCharacter, normalizeCodex, startingClassOf, toCharacterAbility } from './rules';
 import { CACHE_CHARACTERS_KEY, CACHE_UID_KEY, CHARACTERS_KEY, CODEXES_KEY, MIGRATED_KEY } from './storage-keys';
@@ -339,7 +340,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     migrateLocalData(uid)
-      .catch((e) => Alert.alert('Não foi possível enviar os dados antigos', describe(e)))
+      .catch((e) => Alert.alert(tNow('Não foi possível enviar os dados antigos'), txNow(describe(e))))
       .finally(() => {
         if (cancelled) return;
         unsubscribers = [
@@ -443,7 +444,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .catch((e) => {
           keys.forEach((k) => pending.current.delete(k));
           rebuild();
-          Alert.alert('Não foi possível salvar', describe(e));
+          Alert.alert(tNow('Não foi possível salvar'), txNow(describe(e)));
         });
     };
 

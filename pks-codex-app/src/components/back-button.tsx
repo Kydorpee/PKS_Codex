@@ -1,6 +1,7 @@
 import { router, useSegments, type Href } from 'expo-router';
 import { Pressable, StyleSheet } from 'react-native';
 import { colors, spacing } from '@/lib/theme';
+import { useT } from '@/lib/i18n';
 import { PixelIcon } from './pixel-icon';
 
 /** Menu de onde cada grupo de telas é aberto; usado quando não há tela anterior na pilha. */
@@ -14,6 +15,7 @@ const PARENT: Record<string, Href> = {
 /** Botão de voltar da barra superior. */
 export function BackButton() {
   const [section] = useSegments();
+  const { t } = useT();
   const goBack = () => {
     if (router.canGoBack()) router.back();
     else router.replace(PARENT[section] ?? '/');
@@ -21,7 +23,7 @@ export function BackButton() {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Voltar"
+      accessibilityLabel={t('Voltar')}
       hitSlop={12}
       onPress={goBack}
       style={({ pressed }) => [styles.button, pressed && { opacity: 0.6 }]}

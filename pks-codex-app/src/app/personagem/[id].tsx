@@ -16,8 +16,10 @@ import { useStore } from '@/lib/store';
 import { WIDGET_CHARACTER_KEY } from '@/lib/storage-keys';
 import { colors, radius, spacing } from '@/lib/theme';
 import { refreshWidget } from '@/widget';
+import { useT } from '@/lib/i18n';
 
 export default function CharacterSheet() {
+  const { t, tx } = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { characters, codexes, joinCodex, leaveCodex, deleteCharacter, respondAbilityOffer, respondClassOffer, updateCharacter } = useStore();
   const [code, setCode] = useState('');
@@ -35,8 +37,8 @@ export default function CharacterSheet() {
   if (!character) {
     return (
       <Screen>
-        <Stack.Screen options={{ title: 'Personagem' }} />
-        <Muted>Personagem não encontrado.</Muted>
+        <Stack.Screen options={{ title: t('Personagem') }} />
+        <Muted>{t('Personagem não encontrado.')}</Muted>
       </Screen>
     );
   }
@@ -52,14 +54,14 @@ export default function CharacterSheet() {
   const groups = abilityGroups(character, codex);
   const pendingOffers = classOffers.length + offers.length;
   const battleBadge =
-    battle?.status === 'vitoria' ? '🏆' : battle && currentTurn(battle) === character.id && !battle.pending ? 'Sua vez!' : undefined;
+    battle?.status === 'vitoria' ? '🏆' : battle && currentTurn(battle) === character.id && !battle.pending ? t('Sua vez!') : undefined;
   const dismissed = character.dismissedLevelUps ?? [];
   const levelUps = (codex?.levelUps.filter((e) => e.characterId === character.id && !dismissed.includes(e.id)) ?? []).reverse();
   const levelRows = levelUps.map((e) => ({
     id: e.id,
-    title: `🆙 Nível ${e.level}!`,
+    title: `🆙 ${t('Nível {level}!', { level: e.level })}`,
     pending: !e.resolved,
-    lines: e.resolved ? e.rewards.map((r) => `• ${r}`) : ['Aguardando o Mestre definir o evento de nível.'],
+    lines: e.resolved ? e.rewards.map((r) => `• ${tx(r)}`) : [t('Aguardando o Mestre definir o evento de nível.')],
   }));
   const clearLevelUps = () =>
     updateCharacter(character.id, (c) => ({
@@ -72,21 +74,21 @@ export default function CharacterSheet() {
     setJoining(true);
     const error = await joinCodex(character.id, code);
     setJoining(false);
-    if (error) Alert.alert('Codex não encontrado', error);
+    if (error) Alert.alert(t('Codex não encontrado'), tx(error));
     else setCode('');
   };
 
   const confirmLeave = () =>
-    Alert.alert('Sair do Codex?', `${character.name} vai sair de "${codex?.name}".`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => leaveCodex(character.id) },
+    Alert.alert(t('Sair do Codex?'), t('{name} vai sair de "{codex}".', { name: character.name, codex: codex?.name }), [
+      { text: t('Cancelar'), style: 'cancel' },
+      { text: t('Sair'), style: 'destructive', onPress: () => leaveCodex(character.id) },
     ]);
 
   const confirmDelete = () =>
-    Alert.alert('Apagar personagem?', `${character.name} será apagado para sempre.`, [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t('Apagar personagem?'), t('{name} será apagado para sempre.', { name: character.name }), [
+      { text: t('Cancelar'), style: 'cancel' },
       {
-        text: 'Apagar',
+        text: t('Apagar'),
         style: 'destructive',
         onPress: () => {
           router.back();
@@ -100,20 +102,22 @@ export default function CharacterSheet() {
       value={tab}
       onChange={setChosenTab}
       tabs={[
-        { key: 'ficha', label: '📜 Ficha' },
-        { key: 'habilidades', label: '✨ Habilidades', badge: pendingOffers ? `${pendingOffers} nova(s)` : undefined },
-        ...(inBattle ? [{ key: 'batalha' as const, label: '⚔️ Batalha', badge: battleBadge }] : []),
+        { key: 'ficha', label: `📜 ${t('Ficha')}` },
+        { key: 'habilidades', label: `✨ ${t('Habilidades')}`, badge: pendingOffers ? t('{n} nova(s)', { n: pendingOffers }) : undefined },
+        ...(inBattle ? [{ key: 'batalha' as const, label: `⚔️ ${t('Batalha')}`, badge: battleBadge }] : []),
       ]}
     />
   );
 
   const chooseClass = (classId: string, name: string) =>
     Alert.alert(
-      'Trocar de classe?',
-      `${character.name} vira ${name}${klass ? ` e deixa de ser ${klass.name}, perdendo as habilidades dessa classe` : ''}.`,
+      t('Trocar de classe?'),
+      klass
+        ? t('{name} vira {klass} e deixa de ser {old}, perdendo as habilidades dessa classe.', { name: character.name, klass: name, old: klass.name })
+        : t('{name} vira {klass}.', { name: character.name, klass: name }),
       [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Trocar', onPress: () => codex && respondClassOffer(character.id, codex.id, classId, true) },
+        { text: t('Cancelar'), style: 'cancel' },
+        { text: t('Trocar'), onPress: () => codex && respondClassOffer(character.id, codex.id, classId, true) },
       ],
     );
 
@@ -125,17 +129,17 @@ export default function CharacterSheet() {
 
         {codex && (
           <Card style={styles.codexCard}>
-            <Muted>Classe</Muted>
-            <Text style={text.title}>{klass ? `${klass.emoji} ${klass.name}` : 'Sem classe'}</Text>
+            <Muted>{t('Classe')}</Muted>
+            <Text style={text.title}>{klass ? `${klass.emoji} ${klass.name}` : t('Sem classe')}</Text>
             {klass?.description ? <Muted>{klass.description}</Muted> : null}
-            {!klass && <Muted>O Mestre ainda não definiu uma classe para você.</Muted>}
+            {!klass && <Muted>{t('O Mestre ainda não definiu uma classe para você.')}</Muted>}
           </Card>
         )}
 
         {codex && classOffers.length > 0 && (
           <>
-            <SectionHeader title="Classes liberadas" />
-            <Muted>O Mestre liberou estas classes para você. Escolher uma troca a sua classe atual.</Muted>
+            <SectionHeader title={t('Classes liberadas')} />
+            <Muted>{t('O Mestre liberou estas classes para você. Escolher uma troca a sua classe atual.')}</Muted>
             {classOffers.map((k) => {
               const count = codex.abilities.filter((a) => a.classId === k.id).length;
               return (
@@ -144,13 +148,13 @@ export default function CharacterSheet() {
                     {k.emoji} {k.name}
                   </Text>
                   {!!k.description && <Muted>{k.description}</Muted>}
-                  <Muted>{count} habilidade(s) de classe</Muted>
+                  <Muted>{t('{n} habilidade(s) de classe', { n: count })}</Muted>
                   <View style={styles.offerActions}>
-                    <Button small title="Escolher" style={{ flex: 1 }} onPress={() => chooseClass(k.id, k.name)} />
+                    <Button small title={t('Escolher')} style={{ flex: 1 }} onPress={() => chooseClass(k.id, k.name)} />
                     <Button
                       small
                       variant="secondary"
-                      title="Recusar"
+                      title={t('Recusar')}
                       style={{ flex: 1 }}
                       onPress={() => respondClassOffer(character.id, codex.id, k.id, false)}
                     />
@@ -163,16 +167,16 @@ export default function CharacterSheet() {
 
       {codex && offers.length > 0 && (
         <>
-          <SectionHeader title="Habilidades oferecidas" />
-          <Muted>O Mestre liberou estas habilidades para você. Aceite para registrá-las no personagem.</Muted>
+          <SectionHeader title={t('Habilidades oferecidas')} />
+          <Muted>{t('O Mestre liberou estas habilidades para você. Aceite para registrá-las no personagem.')}</Muted>
           {offers.map((a) => (
             <AbilityCard key={a.id} ability={a}>
               <View style={styles.offerActions}>
-                <Button small title="Aceitar" style={{ flex: 1 }} onPress={() => respondAbilityOffer(character.id, codex.id, a.id, true)} />
+                <Button small title={t('Aceitar')} style={{ flex: 1 }} onPress={() => respondAbilityOffer(character.id, codex.id, a.id, true)} />
                 <Button
                   small
                   variant="secondary"
-                  title="Recusar"
+                  title={t('Recusar')}
                   style={{ flex: 1 }}
                   onPress={() => respondAbilityOffer(character.id, codex.id, a.id, false)}
                 />
@@ -182,22 +186,22 @@ export default function CharacterSheet() {
         </>
       )}
 
-      <SectionHeader title={klass ? `Classe · ${klass.emoji} ${klass.name}` : 'Classe'} />
+      <SectionHeader title={klass ? `${t('Classe')} · ${klass.emoji} ${klass.name}` : t('Classe')} />
       {groups.classe.length === 0 ? (
-        <Muted>{klass ? 'Esta classe ainda não tem habilidades.' : 'Sem classe, sem habilidades de classe.'}</Muted>
+        <Muted>{klass ? t('Esta classe ainda não tem habilidades.') : t('Sem classe, sem habilidades de classe.')}</Muted>
       ) : (
         groups.classe.map((a) => <AbilityCard key={a.id} ability={a} />)
       )}
 
-      <SectionHeader title="Gerais" />
+      <SectionHeader title={t('Gerais')} />
       {groups.geral.length === 0 ? (
-        <Muted>Nenhuma habilidade geral ainda. Elas são liberadas pelo Mestre do Codex.</Muted>
+        <Muted>{t('Nenhuma habilidade geral ainda. Elas são liberadas pelo Mestre do Codex.')}</Muted>
       ) : (
         groups.geral.map((a) => <AbilityCard key={a.id} ability={a} />)
       )}
 
-      <SectionHeader title="Montarias" />
-      {groups.montaria.length === 0 && <Muted>Nenhuma montaria. O Mestre pode dar uma, ou procure nas lojas.</Muted>}
+      <SectionHeader title={t('Montarias')} />
+      {groups.montaria.length === 0 && <Muted>{t('Nenhuma montaria. O Mestre pode dar uma, ou procure nas lojas.')}</Muted>}
       {groups.montaria.map(({ mount, abilities }) => (
         <View key={mount.id} style={{ gap: spacing.sm }}>
           <Card>
@@ -206,14 +210,14 @@ export default function CharacterSheet() {
               <View style={{ flex: 1 }}>
                 <Text style={text.strong}>{mount.name}</Text>
                 {!!mount.description && <Muted>{mount.description}</Muted>}
-                <Muted>{abilities.length} habilidade(s)</Muted>
+                <Muted>{t('{n} habilidade(s)', { n: abilities.length })}</Muted>
               </View>
             </View>
           </Card>
           {abilities.map((a) => (
             <AbilityCard key={a.id} ability={a}>
               <Muted>
-                {mount.emoji} Habilidade de {mount.name}
+                {mount.emoji} {t('Habilidade de {name}', { name: mount.name })}
               </Muted>
             </AbilityCard>
           ))}
@@ -227,7 +231,7 @@ export default function CharacterSheet() {
   if (tab === 'batalha' && codex && battle) {
     return (
       <Screen>
-        <Stack.Screen options={{ title: `⚔️ ${codex && battle ? foeNames(battle, codex.monsters) : 'Batalha'}` }} />
+        <Stack.Screen options={{ title: `⚔️ ${codex && battle ? foeNames(battle, codex.monsters) : t('Batalha')}` }} />
         {tabs}
         <BattleView key={battle.id} codexId={codex.id} battleId={battle.id} characterId={character.id} />
       </Screen>
@@ -243,19 +247,19 @@ export default function CharacterSheet() {
       <Card style={styles.codexCard}>
         {codex ? (
           <>
-            <Muted>Campanha atual</Muted>
+            <Muted>{t('Campanha atual')}</Muted>
             <Text style={text.title}>📜 {codex.name}</Text>
             {!!codex.description && <Muted>{codex.description}</Muted>}
-            <Button small variant="danger" title="Sair do Codex" onPress={confirmLeave} style={{ alignSelf: 'flex-start' }} />
+            <Button small variant="danger" title={t('Sair do Codex')} onPress={confirmLeave} style={{ alignSelf: 'flex-start' }} />
           </>
         ) : (
           <>
-            <Text style={text.strong}>Juntar-se a um Codex</Text>
-            <Muted>Digite o código da campanha que o Mestre compartilhou.</Muted>
+            <Text style={text.strong}>{t('Juntar-se a um Codex')}</Text>
+            <Muted>{t('Digite o código da campanha que o Mestre compartilhou.')}</Muted>
             <View style={styles.joinRow}>
               <TextInput
                 style={styles.codeInput}
-                placeholder="CÓDIGO"
+                placeholder={t('CÓDIGO')}
                 placeholderTextColor={colors.textMuted}
                 autoCapitalize="characters"
                 autoCorrect={false}
@@ -263,7 +267,7 @@ export default function CharacterSheet() {
                 value={code}
                 onChangeText={setCode}
               />
-              <Button title={joining ? 'Buscando...' : 'Entrar'} disabled={joining || code.trim().length < 6} onPress={join} />
+              <Button title={joining ? t('Buscando...') : t('Entrar')} disabled={joining || code.trim().length < 6} onPress={join} />
             </View>
           </>
         )}
@@ -277,15 +281,15 @@ export default function CharacterSheet() {
             <Text style={text.title}>{character.name}</Text>
             <View style={styles.level}>
               <StarIcon />
-              <Text style={text.accent}>Nível {character.level}</Text>
+              <Text style={text.accent}>{t('Nível {level}', { level: character.level })}</Text>
             </View>
             {(!!character.race || !!character.age) && (
-              <Muted>{[character.race, character.age && `${character.age} anos`].filter(Boolean).join(' · ')}</Muted>
+              <Muted>{[character.race, character.age && t('{age} anos', { age: character.age })].filter(Boolean).join(' · ')}</Muted>
             )}
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Abrir bolsa de itens"
+            accessibilityLabel={t('Abrir bolsa de itens')}
             onPress={() => setBagOpen(true)}
             style={({ pressed }) => [styles.bag, pressed && { opacity: 0.7 }]}
           >
@@ -301,7 +305,7 @@ export default function CharacterSheet() {
       </Card>
 
       <View style={styles.stats}>
-        <Stat label="Ouro" value={character.gold} icon={<CoinIcon pixel={3} />} />
+        <Stat label={t('Ouro')} value={character.gold} icon={<CoinIcon pixel={3} />} />
         {character.attributes.map((a) => (
           <Stat key={a.id} label={a.name} value={a.value} />
         ))}
@@ -311,15 +315,15 @@ export default function CharacterSheet() {
         <LevelUpBlock
           rows={levelRows}
           onClear={clearLevelUps}
-          emptyText="Nenhuma notificação de nível."
-          pendingWarning="Os avisos que ainda esperam o Mestre também somem daqui. As recompensas continuam valendo na sua ficha."
+          emptyText={t('Nenhuma notificação de nível.')}
+          pendingWarning={t('Os avisos que ainda esperam o Mestre também somem daqui. As recompensas continuam valendo na sua ficha.')}
         />
       )}
 
       {/* Locais liberados pelo Mestre */}
       {codex && (
         <>
-          <SectionHeader title="Locais" />
+          <SectionHeader title={t('Locais')} />
           {openLoots(codex)
             .filter((b) => b.loot!.order.includes(character.id))
             .map((b) => {
@@ -333,10 +337,10 @@ export default function CharacterSheet() {
                   <View style={styles.shopRow}>
                     <Text style={{ fontSize: 28 }}>💰</Text>
                     <View style={{ flex: 1 }}>
-                      <Text style={text.strong}>Espólios · {foeNames(b, codex.monsters)}</Text>
+                      <Text style={text.strong}>{t('Espólios')} · {foeNames(b, codex.monsters)}</Text>
                       <Muted>
-                        {mine ? '⭐ Sua vez de pegar itens!' : `Vez de ${characters.find((c) => c.id === currentLooter(b))?.name ?? '?'}`} ·{' '}
-                        {b.loot!.items.reduce((n, i) => n + i.quantity, 0)} item(ns)
+                        {mine ? `⭐ ${t('Sua vez de pegar itens!')}` : t('Vez de {name}', { name: characters.find((c) => c.id === currentLooter(b))?.name ?? '?' })} ·{' '}
+                        {t('{n} item(ns)', { n: b.loot!.items.reduce((n, i) => n + i.quantity, 0) })}
                       </Muted>
                     </View>
                     <Text style={text.accent}>›</Text>
@@ -345,7 +349,7 @@ export default function CharacterSheet() {
               );
             })}
           {shops.length === 0 && openLoots(codex).length === 0 ? (
-            <Muted>O Mestre ainda não liberou nenhum local para você.</Muted>
+            <Muted>{t('O Mestre ainda não liberou nenhum local para você.')}</Muted>
           ) : (
             shops.map((s) => (
               <Card
@@ -356,7 +360,7 @@ export default function CharacterSheet() {
                   <Text style={{ fontSize: 28 }}>{s.emoji}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={text.strong}>{s.name}</Text>
-                    <Muted>{s.items.length} itens à venda</Muted>
+                    <Muted>{t('{n} itens à venda', { n: s.items.length })}</Muted>
                   </View>
                   <Text style={text.accent}>›</Text>
                 </View>
@@ -369,11 +373,11 @@ export default function CharacterSheet() {
       <View style={styles.actions}>
         <Button
           variant="secondary"
-          title="Editar"
+          title={t('Editar')}
           style={{ flex: 1 }}
           onPress={() => router.push({ pathname: '/personagem/editar', params: { id: character.id } })}
         />
-        <Button variant="danger" title="Apagar" style={{ flex: 1 }} onPress={confirmDelete} />
+        <Button variant="danger" title={t('Apagar')} style={{ flex: 1 }} onPress={confirmDelete} />
       </View>
 
       <InventoryModal

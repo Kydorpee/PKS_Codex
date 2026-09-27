@@ -11,8 +11,10 @@ import { addToInventory } from '@/lib/rules';
 import { useStore } from '@/lib/store';
 import { colors, spacing } from '@/lib/theme';
 import type { Monster } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 export default function EditMonster() {
+  const { t } = useT();
   const { codexId, monsterId } = useLocalSearchParams<{ codexId: string; monsterId?: string }>();
   const { codexes, characters, updateCodex, updateCharacter } = useStore();
   const codex = codexes.find((c) => c.id === codexId);
@@ -54,7 +56,7 @@ export default function EditMonster() {
 
   const save = () => {
     if (!draft.name.trim()) {
-      Alert.alert('Nome obrigatório', 'Dê um nome ao monstro.');
+      Alert.alert(t('Nome obrigatório'), t('Dê um nome ao monstro.'));
       return;
     }
     persist(cleaned());
@@ -68,14 +70,14 @@ export default function EditMonster() {
     const looted = { ...monster, loot: [] };
     persist(looted);
     setDraft(looted);
-    Alert.alert('Espólio entregue', `Os itens foram para a bolsa de ${characterName}.`);
+    Alert.alert(t('Espólio entregue'), t('Os itens foram para a bolsa de {name}.', { name: characterName }));
   };
 
   const confirmDelete = () =>
-    Alert.alert('Remover monstro?', `${draft.name || 'Este monstro'} será removido do Codex.`, [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t('Remover monstro?'), t('{name} será removido do Codex.', { name: draft.name || t('Este monstro') }), [
+      { text: t('Cancelar'), style: 'cancel' },
       {
-        text: 'Remover',
+        text: t('Remover'),
         style: 'destructive',
         onPress: () => {
           updateCodex(codex.id, (c) => ({ ...c, monsters: c.monsters.filter((m) => m.id !== draft.id) }));
@@ -91,13 +93,13 @@ export default function EditMonster() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: existing ? draft.name || 'Monstro' : 'Novo monstro' }} />
+      <Stack.Screen options={{ title: existing ? draft.name || t('Monstro') : t('Novo monstro') }} />
       <PhotoField uri={draft.photoUri} emoji={draft.emoji} name={draft.name} onPick={choosePhoto} onRemove={() => set({ photoUri: undefined })} />
-      <Field label="Nome" placeholder="Ex.: Lich Ancião" value={draft.name} onChangeText={(name) => set({ name })} />
+      <Field label={t('Nome')} placeholder={t('Ex.: Lich Ancião')} value={draft.name} onChangeText={(name) => set({ name })} />
       <View style={styles.inline}>
         <View style={{ flex: 1 }}>
           <Field
-            label="Vida"
+            label={t('Vida')}
             icon={<PixelIcon shape="heart" color={colors.hp} />}
             keyboardType="number-pad"
             value={String(draft.hitPoints)}
@@ -106,7 +108,7 @@ export default function EditMonster() {
         </View>
         <View style={{ flex: 1 }}>
           <Field
-            label="Armadura"
+            label={t('Armadura')}
             icon={<PixelIcon shape="shield" color={SHIELD_COLOR} />}
             keyboardType="number-pad"
             value={String(draft.armor)}
@@ -116,14 +118,14 @@ export default function EditMonster() {
       </View>
 
       <AbilityListEditor value={draft.abilities} onChange={(abilities) => set({ abilities })} />
-      <ItemListEditor title="Espólio (liberado ao morrer)" value={draft.loot} onChange={(loot) => set({ loot })} />
+      <ItemListEditor title={t('Espólio (liberado ao morrer)')} value={draft.loot} onChange={(loot) => set({ loot })} />
 
       {existing && (
         <>
-          <SectionHeader title="Combate" />
+          <SectionHeader title={t('Combate')} />
           <CheckRow
-            label="Monstro derrotado ☠️"
-            detail="Ao derrotar, você pode entregar o espólio a um jogador."
+            label={`${t('Monstro derrotado')} ☠️`}
+            detail={t('Ao derrotar, você pode entregar o espólio a um jogador.')}
             checked={draft.defeated}
             onToggle={() => {
               const monster = { ...cleaned(), defeated: !draft.defeated };
@@ -133,29 +135,29 @@ export default function EditMonster() {
           />
           {draft.defeated && (
             <>
-              {draft.loot.length === 0 && <Muted>Sem espólio para entregar.</Muted>}
-              {draft.loot.length > 0 && players.length === 0 && <Muted>Nenhum jogador no Codex para receber o espólio.</Muted>}
+              {draft.loot.length === 0 && <Muted>{t('Sem espólio para entregar.')}</Muted>}
+              {draft.loot.length > 0 && players.length === 0 && <Muted>{t('Nenhum jogador no Codex para receber o espólio.')}</Muted>}
               {draft.loot.length > 0 &&
                 players.map((p) => (
-                  <Button key={p.id} variant="secondary" title={`Entregar espólio a ${p.name}`} onPress={() => deliverLoot(p.id, p.name)} />
+                  <Button key={p.id} variant="secondary" title={t('Entregar espólio a {name}', { name: p.name })} onPress={() => deliverLoot(p.id, p.name)} />
                 ))}
             </>
           )}
         </>
       )}
 
-      <Button title="Salvar monstro" onPress={save} style={{ marginTop: spacing.lg }} />
+      <Button title={t('Salvar monstro')} onPress={save} style={{ marginTop: spacing.lg }} />
       {existing && !draft.defeated && (
         <Button
           variant="secondary"
-          title="⚔️ Iniciar batalha contra este monstro"
+          title={`⚔️ ${t('Iniciar batalha contra este monstro')}`}
           onPress={() => {
             persist(cleaned());
             router.push({ pathname: '/batalha/nova', params: { codexId: codex.id, monsterId: draft.id } });
           }}
         />
       )}
-      {existing && <Button variant="danger" title="Remover do Codex" onPress={confirmDelete} />}
+      {existing && <Button variant="danger" title={t('Remover do Codex')} onPress={confirmDelete} />}
     </Screen>
   );
 }

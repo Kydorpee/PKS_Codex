@@ -7,8 +7,10 @@ import { ABILITY_PRESETS, abilityFromSeed } from '@/lib/presets';
 import { useStore } from '@/lib/store';
 import { spacing } from '@/lib/theme';
 import type { CodexAbility } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 export default function EditCodexAbility() {
+  const { t } = useT();
   const { codexId, abilityId, classId } = useLocalSearchParams<{ codexId: string; abilityId?: string; classId?: string }>();
   const { codexes, characters, saveAbility, deleteAbility, revokeAbility } = useStore();
   const codex = codexes.find((c) => c.id === codexId);
@@ -28,7 +30,7 @@ export default function EditCodexAbility() {
 
   const save = () => {
     if (!draft.name.trim()) {
-      Alert.alert('Nome obrigatório', 'Dê um nome à habilidade.');
+      Alert.alert(t('Nome obrigatório'), t('Dê um nome à habilidade.'));
       return;
     }
     const owns = (characterId: string) =>
@@ -40,10 +42,10 @@ export default function EditCodexAbility() {
   };
 
   const confirmDelete = () =>
-    Alert.alert('Apagar habilidade?', 'Ela também será removida de todos os personagens que a possuem.', [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t('Apagar habilidade?'), t('Ela também será removida de todos os personagens que a possuem.'), [
+      { text: t('Cancelar'), style: 'cancel' },
       {
-        text: 'Apagar',
+        text: t('Apagar'),
         style: 'destructive',
         onPress: () => {
           router.back();
@@ -54,11 +56,11 @@ export default function EditCodexAbility() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: existing ? 'Editar habilidade' : 'Nova habilidade' }} />
+      <Stack.Screen options={{ title: existing ? t('Editar habilidade') : t('Nova habilidade') }} />
 
       {!existing && (
         <>
-          <Muted>Sugestões (toque para preencher):</Muted>
+          <Muted>{t('Sugestões (toque para preencher):')}</Muted>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestions}>
             {ABILITY_PRESETS.map((seed) => (
               <Button
@@ -75,12 +77,12 @@ export default function EditCodexAbility() {
 
       <AbilityFields value={draft} onChange={setDraft} />
 
-      <SectionHeader title="Classe" />
+      <SectionHeader title={t('Classe')} />
       <View style={styles.classes}>
         <Button
           small
           variant={draft.classId ? 'secondary' : 'primary'}
-          title="Geral (sem classe)"
+          title={t('Geral (sem classe)')}
           onPress={() => setDraft((d) => ({ ...d, classId: undefined }))}
         />
         {codex.classes.map((k) => (
@@ -96,22 +98,21 @@ export default function EditCodexAbility() {
 
       {klass ? (
         <Muted>
-          Todo personagem da classe {klass.emoji} {klass.name} recebe esta habilidade ({players.filter((p) => p.classId === klass.id).length}{' '}
-          agora).
+          {t('Todo personagem da classe {klass} recebe esta habilidade ({n} agora).', { klass: `${klass.emoji} ${klass.name}`, n: players.filter((p) => p.classId === klass.id).length })}
         </Muted>
       ) : (
-        <SectionHeader title="Quem pode pegar" />
+        <SectionHeader title={t('Quem pode pegar')} />
       )}
-      {!klass && players.length === 0 && <Muted>Nenhum jogador no Codex ainda.</Muted>}
+      {!klass && players.length === 0 && <Muted>{t('Nenhum jogador no Codex ainda.')}</Muted>}
       {!klass && players.map((p) => {
         const owns = p.abilities.some((a) => a.id === draft.id);
         if (owns) {
           return (
             <View key={p.id} style={styles.ownerRow}>
               <View style={{ flex: 1 }}>
-                <CheckRow label={p.name} uri={p.photoUri} detail="Já possui esta habilidade" checked onToggle={() => {}} />
+                <CheckRow label={p.name} uri={p.photoUri} detail={t('Já possui esta habilidade')} checked onToggle={() => {}} />
               </View>
-              <Button small variant="danger" title="Remover" onPress={() => revokeAbility(p.id, draft.id)} />
+              <Button small variant="danger" title={t('Remover')} onPress={() => revokeAbility(p.id, draft.id)} />
             </View>
           );
         }
@@ -121,15 +122,15 @@ export default function EditCodexAbility() {
             key={p.id}
             label={p.name}
             uri={p.photoUri}
-            detail={offered ? 'Oferecida — aguardando o jogador aceitar' : 'Toque para oferecer'}
+            detail={offered ? t('Oferecida — aguardando o jogador aceitar') : t('Toque para oferecer')}
             checked={offered}
             onToggle={() => toggleOffer(p.id)}
           />
         );
       })}
 
-      <Button title="Salvar habilidade" onPress={save} style={{ marginTop: spacing.lg }} />
-      {existing && <Button variant="danger" title="Apagar habilidade" onPress={confirmDelete} />}
+      <Button title={t('Salvar habilidade')} onPress={save} style={{ marginTop: spacing.lg }} />
+      {existing && <Button variant="danger" title={t('Apagar habilidade')} onPress={confirmDelete} />}
     </Screen>
   );
 }

@@ -6,15 +6,17 @@ import { GameNotifier } from '@/components/game-notifier';
 import { Button } from '@/components/ui';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firebaseConfigured } from '@/lib/firebase';
+import { LanguageProvider, useT } from '@/lib/i18n';
 import { StoreProvider, useStore } from '@/lib/store';
 import { colors } from '@/lib/theme';
 
 function Message({ title, detail, onRetry }: { title: string; detail?: string; onRetry?: () => void }) {
+  const { t } = useT();
   return (
     <View style={styles.center}>
       <Text style={styles.title}>{title}</Text>
       {!!detail && <Text style={styles.detail}>{detail}</Text>}
-      {onRetry && <Button title="Tentar de novo" onPress={onRetry} />}
+      {onRetry && <Button title={t('Tentar de novo')} onPress={onRetry} />}
     </View>
   );
 }
@@ -22,17 +24,18 @@ function Message({ title, detail, onRetry }: { title: string; detail?: string; o
 /** Aviso discreto no rodapé: sincronizando em segundo plano ou sem conexão. */
 function SyncStatus() {
   const { synced, error, retry } = useStore();
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   if (synced && !error) return null;
   return (
     <View pointerEvents="box-none" style={[styles.statusWrap, { bottom: insets.bottom + 12 }]}>
       <Pressable accessibilityRole="button" disabled={!error} onPress={retry} style={styles.status}>
         {error ? (
-          <Text style={styles.statusText}>Sem conexão · toque para tentar de novo</Text>
+          <Text style={styles.statusText}>{t('Sem conexão · toque para tentar de novo')}</Text>
         ) : (
           <>
             <ActivityIndicator size="small" color={colors.gold} />
-            <Text style={styles.statusText}>Sincronizando...</Text>
+            <Text style={styles.statusText}>{t('Sincronizando...')}</Text>
           </>
         )}
       </Pressable>
@@ -42,12 +45,13 @@ function SyncStatus() {
 
 function Navigator() {
   const { loaded, error, retry } = useStore();
+  const { t } = useT();
   if (!loaded) {
-    if (error) return <Message title="Sem conexão com o servidor" detail={error} onRetry={retry} />;
+    if (error) return <Message title={t('Sem conexão com o servidor')} detail={error} onRetry={retry} />;
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.gold} />
-        <Text style={styles.detail}>Conectando ao servidor...</Text>
+        <Text style={styles.detail}>{t('Conectando ao servidor...')}</Text>
       </View>
     );
   }
@@ -71,8 +75,19 @@ function Navigator() {
   );
 }
 
+function Unconfigured() {
+  const { t } = useT();
+  return (
+    <Message
+      title={t('Firebase não configurado')}
+      detail={t('Preencha o arquivo .env com os dados do projeto Firebase e gere o app de novo.')}
+    />
+  );
+}
+
 export default function RootLayout() {
   return (
+    <LanguageProvider>
     <SafeAreaProvider>
       <StatusBar style="light" />
       {firebaseConfigured ? (
@@ -80,9 +95,10 @@ export default function RootLayout() {
           <Navigator />
         </StoreProvider>
       ) : (
-        <Message title="Firebase não configurado" detail="Preencha o arquivo .env com os dados do projeto Firebase e gere o app de novo." />
+        <Unconfigured />
       )}
     </SafeAreaProvider>
+    </LanguageProvider>
   );
 }
 

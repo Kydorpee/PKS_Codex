@@ -4,6 +4,7 @@ import { Animated, Pressable, StyleSheet, Text, Vibration, View } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { currentLooter, currentTurn, foeNames, foeOf } from '@/lib/engine';
 import { STATUS_INFO } from '@/lib/rules';
+import { useT } from '@/lib/i18n';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
 
@@ -33,7 +34,7 @@ const VISIBLE_MS = 4000;
  * Estado atual das batalhas que este aparelho acompanha. Eventos de nível não viram aviso na tela:
  * ficam no bloco "Eventos de nível", para não atrapalhar o jogo.
  */
-function watch(store: ReturnType<typeof useStore>): Notice[] {
+function watch(store: ReturnType<typeof useStore>, t: ReturnType<typeof useT>['t']): Notice[] {
   const { codexes, characters, myCharacters, myCodexes } = store;
   const mine = new Set(myCharacters.map((c) => c.id));
   const mastered = new Set(myCodexes.map((c) => c.id));
@@ -50,8 +51,8 @@ function watch(store: ReturnType<typeof useStore>): Notice[] {
           slot: `espolios/${battle.id}`,
           key: `${battle.loot!.turnIndex}`,
           notify: true,
-          title: myLoot ? '💰 Sua vez nos Espólios!' : `💰 Vez de ${characters.find((c) => c.id === looter)?.name ?? '?'} nos Espólios`,
-          detail: myLoot ? 'Pegue os itens que quiser e passe a vez.' : 'Itens do monstro derrotado.',
+          title: myLoot ? `💰 ${t('Sua vez nos Espólios!')}` : `💰 ${t('Vez de {name} nos Espólios', { name: characters.find((c) => c.id === looter)?.name ?? '?' })}`,
+          detail: myLoot ? t('Pegue os itens que quiser e passe a vez.') : t('Itens do monstro derrotado.'),
           mine: myLoot,
           href: {
             pathname: '/espolios',
@@ -82,15 +83,15 @@ function watch(store: ReturnType<typeof useStore>): Notice[] {
         notify: !!hit,
         status: true,
         color: hit ? STATUS_INFO[hit.type].color : undefined,
-        title: hit ? `${STATUS_INFO[hit.type].emoji} ${hit.target} (${STATUS_INFO[hit.type].condition})` : '',
-        detail: hit ? `Chance de ${hit.chance}% · o sistema rolou ${hit.roll} · ${STATUS_INFO[hit.type].effect}` : '',
+        title: hit ? `${STATUS_INFO[hit.type].emoji} ${hit.target} (${t(STATUS_INFO[hit.type].condition)})` : '',
+        detail: hit ? t('Chance de {chance}% · o sistema rolou {roll} · {effect}', { chance: hit.chance, roll: hit.roll, effect: STATUS_INFO[hit.type].effect }) : '',
         mine: false,
       });
       if (foeOf(battle, turn)) {
         notices.push({
           ...base,
-          title: `👹 Vez de ${codex.monsters.find((m) => m.id === turn)?.name ?? 'monstro'}`,
-          detail: isMaster ? 'Mestre, escolha a ação do monstro.' : `Rodada ${battle.round}`,
+          title: `👹 ${t('Vez de {name}', { name: codex.monsters.find((m) => m.id === turn)?.name ?? t('monstro') })}`,
+          detail: isMaster ? t('Mestre, escolha a ação do monstro.') : t('Rodada {n}', { n: battle.round }),
           mine: isMaster,
         });
       } else {
@@ -98,8 +99,8 @@ function watch(store: ReturnType<typeof useStore>): Notice[] {
         const myTurn = mine.has(turn);
         notices.push({
           ...base,
-          title: myTurn ? `🔔 Sua vez, ${actor?.name ?? '?'}!` : `⚔️ Vez de ${actor?.name ?? '?'}`,
-          detail: myTurn ? 'Toque para agir na batalha.' : `Rodada ${battle.round} · contra ${against}`,
+          title: myTurn ? `🔔 ${t('Sua vez, {name}!', { name: actor?.name ?? '?' })}` : `⚔️ ${t('Vez de {name}', { name: actor?.name ?? '?' })}`,
+          detail: myTurn ? t('Toque para agir na batalha.') : t('Rodada {n} · contra {against}', { n: battle.round, against }),
           mine: myTurn,
         });
       }
@@ -117,8 +118,9 @@ const stampsOf = (notices: Notice[]) => Object.fromEntries(notices.map((n) => [n
  */
 export function GameNotifier() {
   const store = useStore();
+  const { t } = useT();
   const insets = useSafeAreaInsets();
-  const current = watch(store);
+  const current = watch(store, t);
   // Estado já visto: ao abrir o app só registra, sem avisar.
   const [stamps, setStamps] = useState(() => stampsOf(current));
   // Avisos em fila: o status aplicado aparece antes da troca de turno que vem logo depois.

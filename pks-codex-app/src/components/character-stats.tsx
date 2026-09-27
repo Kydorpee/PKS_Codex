@@ -2,17 +2,19 @@ import { StyleSheet, Text, View } from 'react-native';
 import { STATUS_INFO, xpToNext } from '@/lib/rules';
 import { colors, hpColor, radius, spacing } from '@/lib/theme';
 import type { ActiveStatus, Character } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 import { PixelIcon } from './pixel-icon';
 import { Bar } from './ui';
 
 export function StatusBadges({ statuses }: { statuses: ActiveStatus[] }) {
+  const { t } = useT();
   if (statuses.length === 0) return null;
   return (
     <View style={styles.badges}>
       {statuses.map((s) => (
         <View key={s.type} style={[styles.badge, { borderColor: STATUS_INFO[s.type].color }]}>
           <Text style={[styles.badgeText, { color: STATUS_INFO[s.type].color }]}>
-            {STATUS_INFO[s.type].emoji} {STATUS_INFO[s.type].label} · {s.roundsLeft}t
+            {STATUS_INFO[s.type].emoji} {t(STATUS_INFO[s.type].label)} · {s.roundsLeft}t
           </Text>
         </View>
       ))}
@@ -22,10 +24,11 @@ export function StatusBadges({ statuses }: { statuses: ActiveStatus[] }) {
 
 /** Vida, mana e estamina (e XP, opcional). */
 export function CharacterBars({ character, showXp }: { character: Character; showXp?: boolean }) {
+  const { t } = useT();
   return (
     <View style={{ gap: spacing.sm }}>
       <Bar
-        label="Vida"
+        label={t('Vida')}
         value={character.hp}
         max={character.maxHp}
         color={hpColor(character.hp, character.maxHp)}
@@ -34,14 +37,14 @@ export function CharacterBars({ character, showXp }: { character: Character; sho
       />
       <View style={styles.inline}>
         <Bar
-          label="Mana"
+          label={t('Mana')}
           value={character.mana}
           max={character.maxMana}
           color={colors.mana}
           icon={<PixelIcon shape="drop" pct={character.maxMana > 0 ? character.mana / character.maxMana : 0} color={colors.mana} />}
         />
         <Bar
-          label="Estamina"
+          label={t('Estamina')}
           value={character.stamina}
           max={character.maxStamina}
           color={colors.stamina}
@@ -52,7 +55,7 @@ export function CharacterBars({ character, showXp }: { character: Character; sho
       </View>
       {showXp && (
         <Bar
-          label={`Nível ${character.level} — XP`}
+          label={t('Nível {level} — XP', { level: character.level })}
           value={character.xp}
           max={xpToNext(character.level)}
           color={colors.xp}

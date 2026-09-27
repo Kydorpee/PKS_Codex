@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, spacing } from '@/lib/theme';
 import type { Terrain } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 /** Lugares do cenário; cada um tem versão de dia e (quase todos) de noite. */
 export const PLACES: { key: string; label: string; emoji: string; night: boolean }[] = [
@@ -413,6 +414,7 @@ export const PixelScene = memo(function PixelScene({ terrain, thumb }: { terrain
 
 /** Escolha do cenário: miniaturas de cada lugar e um botão Dia/Noite. */
 export function TerrainPicker({ value, onChange }: { value: Terrain; onChange: (t: Terrain) => void }) {
+  const { t } = useT();
   const night = value.endsWith('noite');
   const place = value.replace('-noite', '');
   const pick = (key: string, wantNight: boolean) => {
@@ -433,7 +435,7 @@ export function TerrainPicker({ value, onChange }: { value: Terrain; onChange: (
             onPress={() => pick(place, n)}
             style={[styles.dayNightButton, night === n && styles.dayNightActive, n && !hasNight && { opacity: 0.4 }]}
           >
-            <Text style={styles.dayNightText}>{n ? '🌙 Noite' : '☀️ Dia'}</Text>
+            <Text style={styles.dayNightText}>{n ? `🌙 ${t('Noite')}` : `☀️ ${t('Dia')}`}</Text>
           </Pressable>
         ))}
       </View>
@@ -445,13 +447,13 @@ export function TerrainPicker({ value, onChange }: { value: Terrain; onChange: (
               key={p.key}
               accessibilityRole="radio"
               accessibilityState={{ selected: active }}
-              accessibilityLabel={p.label}
+              accessibilityLabel={t(p.label)}
               onPress={() => pick(p.key, night)}
               style={[styles.cell, active && styles.cellActive]}
             >
               <PixelScene terrain={(night && p.night ? `${p.key}-noite` : p.key) as Terrain} thumb />
               <Text style={styles.cellLabel} numberOfLines={1}>
-                {p.emoji} {p.label}
+                {p.emoji} {t(p.label)}
               </Text>
             </Pressable>
           );

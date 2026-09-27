@@ -6,22 +6,24 @@ import { Avatar, Button, Card, Muted, Screen, text } from '@/components/ui';
 import { useStore } from '@/lib/store';
 import { spacing } from '@/lib/theme';
 import { MAX_CHARACTERS } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 export default function Characters() {
+  const { t } = useT();
   const { myCharacters: characters, codexes } = useStore();
   const full = characters.length >= MAX_CHARACTERS;
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Meus personagens' }} />
+      <Stack.Screen options={{ title: t('Meus personagens') }} />
       <Muted>
-        {characters.length} de {MAX_CHARACTERS} personagens
+        {t('{n} de {max} personagens', { n: characters.length, max: MAX_CHARACTERS })}
       </Muted>
 
       {characters.length === 0 && (
         <Card>
-          <Text style={text.strong}>Nenhum personagem ainda</Text>
-          <Muted>Crie seu primeiro herói para entrar em uma campanha.</Muted>
+          <Text style={text.strong}>{t('Nenhum personagem ainda')}</Text>
+          <Muted>{t('Crie seu primeiro herói para entrar em uma campanha.')}</Muted>
         </Card>
       )}
 
@@ -34,8 +36,8 @@ export default function Characters() {
               <View style={{ flex: 1 }}>
                 <Text style={text.strong}>{c.name}</Text>
                 <Muted>
-                  {c.age ? `${c.age} anos · ` : ''}
-                  {codex ? `Codex: ${codex.name}` : 'Sem Codex'}
+                  {c.age ? `${t('{age} anos', { age: c.age })} · ` : ''}
+                  {codex ? `Codex: ${codex.name}` : t('Sem Codex')}
                 </Muted>
               </View>
               <GoldAmount value={c.gold} />
@@ -46,7 +48,7 @@ export default function Characters() {
       })}
 
       <Button
-        title={full ? `Limite de ${MAX_CHARACTERS} personagens` : '+ Criar personagem'}
+        title={full ? t('Limite de {max} personagens', { max: MAX_CHARACTERS }) : t('+ Criar personagem')}
         disabled={full}
         onPress={() => router.push('/personagem/editar')}
       />

@@ -48,12 +48,21 @@ const frame = {
   padding: 12,
 } as const;
 
-export function CharacterWidget({ character, codexName }: { character?: Character; codexName?: string }) {
+export function CharacterWidget({
+  character,
+  codexName,
+  t,
+}: {
+  character?: Character;
+  codexName?: string;
+  /** Tradução no idioma escolhido no app (o widget roda fora do app). */
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
   if (!character) {
     return (
       <FlexWidget clickAction="OPEN_APP" style={{ ...frame, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flexGap: 6 }}>
         <TextWidget text="PKS Codex" style={{ fontSize: 18, fontWeight: 'bold', color: c(palette.gold) }} />
-        <TextWidget text="Crie um personagem para vê-lo aqui" style={{ fontSize: 12, color: c(palette.parchment) }} />
+        <TextWidget text={t('Crie um personagem para vê-lo aqui')} style={{ fontSize: 12, color: c(palette.parchment) }} />
       </FlexWidget>
     );
   }
@@ -62,7 +71,7 @@ export function CharacterWidget({ character, codexName }: { character?: Characte
     <FlexWidget
       clickAction="OPEN_URI"
       clickActionData={{ uri: `pkscodex://personagem/${character.id}` }}
-      accessibilityLabel={`Ficha de ${character.name}`}
+      accessibilityLabel={t('Ficha de {name}', { name: character.name })}
       style={{ ...frame, flexDirection: 'column', justifyContent: 'space-between' }}
     >
       <FlexWidget style={{ flexDirection: 'row', alignItems: 'center', width: 'match_parent', flexGap: 6 }}>
@@ -75,7 +84,7 @@ export function CharacterWidget({ character, codexName }: { character?: Characte
           />
         </FlexWidget>
         <Icon shape="star" pct={character.xp / xpToNext(character.level)} color={palette.gold} />
-        <TextWidget text={`Nv ${character.level}`} style={{ fontSize: 12, fontWeight: 'bold', color: c(palette.gold) }} />
+        <TextWidget text={t('Nv {level}', { level: character.level })} style={{ fontSize: 12, fontWeight: 'bold', color: c(palette.gold) }} />
         <Icon shape="coin" color={COIN.color} accent={COIN.accent} />
         <TextWidget text={String(character.gold)} style={{ fontSize: 12, fontWeight: 'bold', color: c(palette.gold) }} />
       </FlexWidget>

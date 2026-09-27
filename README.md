@@ -103,8 +103,9 @@ Os dados ficam salvos no aparelho e são sincronizados em tempo real pelo Fireba
 ### ✨ Extras
 
 - **Widget na tela inicial (Android)** com vida, mana, estamina, nível e ouro do seu personagem.
-- **Modo demonstração** — cria 3 personagens e um Codex com monstros, lojas, habilidades e uma batalha em andamento para explorar o app sem configurar nada.
-- **Galeria visual** com a paleta de cores, os ícones em pixel art e todos os componentes do app para testar.
+- **Idiomas** — o app funciona em Português (Brasil) e English. O idioma é escolhido no botão ⚙️ de opções da tela inicial e vale também para o registro da batalha e o widget. O conteúdo criado no Codex (nomes de monstros, habilidades, itens) fica como foi escrito.
+- **Modo demonstração** (nas opções ⚙️ da tela inicial) — cria 3 personagens e um Codex com monstros, lojas, habilidades e uma batalha em andamento para explorar o app sem configurar nada.
+- **Galeria visual** (nas opções ⚙️ da tela inicial) com a paleta de cores, os ícones em pixel art e todos os componentes do app para testar.
 - **Tema escuro** com paleta medieval: Carmesim, Dourado Antigo, Preto Carvão, Pergaminho, Grafite e Ardósia.
 
 ## Regras do sistema
@@ -224,6 +225,7 @@ PKS_CODEX/
 │   │   │   ├── store.tsx         # Estado global + persistência local
 │   │   │   ├── sync.ts           # Diferença entre estados para o Firestore
 │   │   │   ├── firebase.ts       # Conexão com Auth e Firestore
+│   │   │   ├── i18n*.ts(x)       # Tradução: português como chave e dicionário inglês
 │   │   │   └── types.ts          # Tipos do domínio
 │   │   └── widget/           # Widget Android da tela inicial
 │   ├── tests/                # Testes (node:test)
@@ -247,6 +249,7 @@ npm test            # ou: scripts/check.ps1 (typecheck + testes)
 | Arquivo | Cobre |
 | --- | --- |
 | `tests/engine.test.js` | Iniciativa, turnos, vários monstros, armadura, defesa, fuga, custo de mana, status, habilidades de montaria, levantar caídos, espólios, XP, subida de nível, conversão de batalhas antigas e modo demonstração |
+| `tests/i18n.test.js` | Todo texto do app tem tradução e o registro da batalha é traduzido |
 | `tests/sync.test.js` | Detecção de mudanças e sincronização dos documentos |
 | `tests/pixel-shapes.test.js` | Desenho dos ícones em pixel art |
 

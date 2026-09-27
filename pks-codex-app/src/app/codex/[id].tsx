@@ -14,11 +14,13 @@ import { startingClassOf } from '@/lib/rules';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
 import type { Battle } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 /** A batalha espera o Mestre: turno do monstro, ação de jogador para resolver ou XP da vitória. */
 const needsMaster = (b: Battle) => (b.status === 'vitoria' && !b.xpAwarded) || (b.status === 'ativa' && (!!b.pending || !!foeOf(b, currentTurn(b))));
 
 export default function CodexDashboard() {
+  const { t, tx } = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { codexes, characters, updateCharacter, updateCodex, removeFromCodex, deleteCodex, setStartingClass } = useStore();
   const codex = codexes.find((c) => c.id === id);
@@ -41,7 +43,7 @@ export default function CodexDashboard() {
     return (
       <Screen>
         <Stack.Screen options={{ title: 'Codex' }} />
-        <Muted>Codex não encontrado.</Muted>
+        <Muted>{t('Codex não encontrado.')}</Muted>
       </Screen>
     );
   }
@@ -49,7 +51,7 @@ export default function CodexDashboard() {
   const players = characters.filter((c) => c.codexId === codex.id);
   const classLabel = (classId?: string) => {
     const k = codex.classes.find((x) => x.id === classId);
-    return k ? `${k.emoji} ${k.name}` : 'nenhuma';
+    return k ? `${k.emoji} ${k.name}` : t('nenhuma');
   };
 
   const pendingLevelUps = codex.levelUps.filter((e) => !e.resolved);
@@ -60,11 +62,11 @@ export default function CodexDashboard() {
       const c = characters.find((x) => x.id === e.characterId);
       return {
         id: e.id,
-        title: `🆙 ${c?.name ?? '?'} · nível ${e.level}`,
+        title: `🆙 ${t('{name} · nível {level}', { name: c?.name ?? '?', level: e.level })}`,
         pending: !e.resolved,
         lines: e.resolved
-          ? e.rewards.map((r) => `• ${r}`)
-          : [c ? 'Toque para liberar habilidades ou aumentar status.' : 'O personagem saiu do Codex. Toque para descartar.'],
+          ? e.rewards.map((r) => `• ${tx(r)}`)
+          : [c ? t('Toque para liberar habilidades ou aumentar status.') : t('O personagem saiu do Codex. Toque para descartar.')],
         onPress: e.resolved ? undefined : () => router.push({ pathname: '/codex/nivel', params: { codexId: codex.id, eventId: e.id } }),
       };
     });
@@ -76,14 +78,14 @@ export default function CodexDashboard() {
     }));
 
   const confirmRemove = (characterId: string, name: string) =>
-    Alert.alert('Remover do Codex?', `${name} vai sair de "${codex.name}". A ficha do jogador continua existindo.`, [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t('Remover do Codex?'), t('{name} vai sair de "{codex}". A ficha do jogador continua existindo.', { name, codex: codex.name }), [
+      { text: t('Cancelar'), style: 'cancel' },
       {
-        text: 'Remover',
+        text: t('Remover'),
         style: 'destructive',
         onPress: () => {
           const error = removeFromCodex(codex.id, characterId);
-          if (error) Alert.alert('Não foi possível remover', error);
+          if (error) Alert.alert(t('Não foi possível remover'), tx(error));
         },
       },
     ]);
@@ -107,10 +109,10 @@ export default function CodexDashboard() {
   const addShopPreset = (key: string) => router.push({ pathname: '/codex/loja', params: { codexId: codex.id, preset: key } });
 
   const confirmDelete = () =>
-    Alert.alert('Apagar Codex?', `"${codex.name}" e todo o seu conteúdo serão apagados. Os jogadores sairão da campanha.`, [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t('Apagar Codex?'), t('"{codex}" e todo o seu conteúdo serão apagados. Os jogadores sairão da campanha.', { codex: codex.name }), [
+      { text: t('Cancelar'), style: 'cancel' },
       {
-        text: 'Apagar',
+        text: t('Apagar'),
         style: 'destructive',
         onPress: () => {
           router.back();
@@ -125,9 +127,9 @@ export default function CodexDashboard() {
       onChange={setChosenTab}
       tabs={[
         { key: 'codex', label: '📜 Codex', badge: pendingLevelUps.length ? `🆙 ${pendingLevelUps.length}` : undefined },
-        { key: 'habilidades', label: '✨ Habilidades' },
-        { key: 'montarias', label: '🐎 Montarias' },
-        { key: 'batalhas', label: `⚔️ Batalhas${battles.length ? ` (${battles.length})` : ''}`, badge: waiting ? 'Sua vez!' : undefined },
+        { key: 'habilidades', label: `✨ ${t('Habilidades')}` },
+        { key: 'montarias', label: `🐎 ${t('Montarias')}` },
+        { key: 'batalhas', label: `⚔️ ${t('Batalhas')}${battles.length ? ` (${battles.length})` : ''}`, badge: waiting ? t('Sua vez!') : undefined },
       ]}
     />
   );
@@ -138,13 +140,13 @@ export default function CodexDashboard() {
         <Stack.Screen options={{ title: codex.name }} />
         {tabs}
         <SectionHeader
-          title="Montarias"
+          title={t('Montarias')}
           action={
-            <Button small variant="secondary" title="+ Nova" onPress={() => router.push({ pathname: '/codex/montaria', params: { codexId: codex.id } })} />
+            <Button small variant="secondary" title={t('+ Nova')} onPress={() => router.push({ pathname: '/codex/montaria', params: { codexId: codex.id } })} />
           }
         />
-        <Muted>Cada montaria tem habilidades próprias. Dê a montaria aos personagens ou venda numa loja.</Muted>
-        {codex.mounts.length === 0 && <Muted>Nenhuma montaria ainda. Crie um cavalo, um lobo gigante, um grifo...</Muted>}
+        <Muted>{t('Cada montaria tem habilidades próprias. Dê a montaria aos personagens ou venda numa loja.')}</Muted>
+        {codex.mounts.length === 0 && <Muted>{t('Nenhuma montaria ainda. Crie um cavalo, um lobo gigante, um grifo...')}</Muted>}
         {codex.mounts.map((m) => {
           const owners = players.filter((p) => p.mountIds.includes(m.id));
           const shops = codex.shops.filter((s) => s.items.some((i) => i.mountId === m.id));
@@ -155,8 +157,8 @@ export default function CodexDashboard() {
                 <View style={{ flex: 1 }}>
                   <Text style={text.strong}>{m.name}</Text>
                   <Muted>
-                    {m.abilities.length} habilidade(s) · {owners.length} personagem(ns)
-                    {shops.length ? ` · à venda em ${shops.map((s) => s.name).join(', ')}` : ''}
+                    {t('{n} habilidade(s) · {m} personagem(ns)', { n: m.abilities.length, m: owners.length })}
+                    {shops.length ? ` · ${t('à venda em {shops}', { shops: shops.map((s) => s.name).join(', ') })}` : ''}
                   </Muted>
                   {owners.length > 0 && <Muted>{owners.map((o) => o.name).join(', ')}</Muted>}
                 </View>
@@ -178,15 +180,15 @@ export default function CodexDashboard() {
 
         {/* Classes */}
         <SectionHeader
-          title="Classes"
+          title={t('Classes')}
           action={
-            <Button small variant="secondary" title="+ Nova" onPress={() => router.push({ pathname: '/codex/classe', params: { codexId: codex.id } })} />
+            <Button small variant="secondary" title={t('+ Nova')} onPress={() => router.push({ pathname: '/codex/classe', params: { codexId: codex.id } })} />
           }
         />
         <Muted>
-          Cada personagem entra no Codex com a classe inicial. Libere outras classes para quem pode trocar: o jogador escolhe se troca.
+          {t('Cada personagem entra no Codex com a classe inicial. Libere outras classes para quem pode trocar: o jogador escolhe se troca.')}
         </Muted>
-        {codex.classes.length === 0 && <Muted>Nenhuma classe ainda. Crie Guerreiro, Mago, Ladino...</Muted>}
+        {codex.classes.length === 0 && <Muted>{t('Nenhuma classe ainda. Crie Guerreiro, Mago, Ladino...')}</Muted>}
         {codex.classes.map((k) => {
           const members = players.filter((p) => p.classId === k.id);
           const count = codex.abilities.filter((a) => a.classId === k.id).length;
@@ -198,17 +200,17 @@ export default function CodexDashboard() {
                 <View style={{ flex: 1 }}>
                   <Text style={text.strong}>
                     {k.name}
-                    {starting ? ' · inicial' : ''}
+                    {starting ? ` · ${t('inicial')}` : ''}
                   </Text>
                   <Muted>
-                    {count} habilidade(s) · {members.length} personagem(ns)
-                    {k.offeredTo.length ? ` · ${k.offeredTo.length} aguardando escolha` : ''}
+                    {t('{n} habilidade(s) · {m} personagem(ns)', { n: count, m: members.length })}
+                    {k.offeredTo.length ? ` · ${t('{n} aguardando escolha', { n: k.offeredTo.length })}` : ''}
                   </Muted>
                   {members.length > 0 && <Muted>{members.map((m) => m.name).join(', ')}</Muted>}
                 </View>
               </View>
               {!starting && (
-                <Button small variant="secondary" title="Usar como classe inicial" onPress={() => setStartingClass(codex.id, k.id)} />
+                <Button small variant="secondary" title={t('Usar como classe inicial')} onPress={() => setStartingClass(codex.id, k.id)} />
               )}
             </Card>
           );
@@ -216,12 +218,12 @@ export default function CodexDashboard() {
 
         {/* Habilidades gerais */}
         <SectionHeader
-          title="Habilidades gerais"
+          title={t('Habilidades gerais')}
           action={
-            <Button small variant="secondary" title="+ Nova" onPress={() => router.push({ pathname: '/codex/habilidade', params: { codexId: codex.id } })} />
+            <Button small variant="secondary" title={t('+ Nova')} onPress={() => router.push({ pathname: '/codex/habilidade', params: { codexId: codex.id } })} />
           }
         />
-        <Muted>Sem classe: você escolhe quais personagens podem pegá-las.</Muted>
+        <Muted>{t('Sem classe: você escolhe quais personagens podem pegá-las.')}</Muted>
         {general.map((a) => {
           const owners = players.filter((p) => p.abilities.some((x) => x.id === a.id)).length;
           return (
@@ -231,7 +233,7 @@ export default function CodexDashboard() {
               onPress={() => router.push({ pathname: '/codex/habilidade', params: { codexId: codex.id, abilityId: a.id } })}
             >
               <Muted>
-                {owners} possui · {a.offeredTo.length} aguardando resposta
+                {t('{owners} possui · {n} aguardando resposta', { owners, n: a.offeredTo.length })}
               </Muted>
             </AbilityCard>
           );
@@ -271,11 +273,11 @@ export default function CodexDashboard() {
           <BattleView key={shown.id} codexId={codex.id} battleId={shown.id} />
         ) : (
           <Card>
-            <Text style={text.strong}>Nenhuma batalha em andamento</Text>
-            <Muted>Quando começar uma, ela aparece aqui para você acompanhar só o que acontece nela.</Muted>
+            <Text style={text.strong}>{t('Nenhuma batalha em andamento')}</Text>
+            <Muted>{t('Quando começar uma, ela aparece aqui para você acompanhar só o que acontece nela.')}</Muted>
           </Card>
         )}
-        <Button variant="secondary" title="⚔️ Nova batalha" onPress={newBattle} />
+        <Button variant="secondary" title={`⚔️ ${t('Nova batalha')}`} onPress={newBattle} />
       </Screen>
     );
   }
@@ -286,7 +288,7 @@ export default function CodexDashboard() {
       {tabs}
 
       <Card style={styles.codeCard}>
-        <Muted>Código para os jogadores entrarem</Muted>
+        <Muted>{t('Código para os jogadores entrarem')}</Muted>
         <Text selectable style={styles.code}>
           {codex.code}
         </Text>
@@ -295,12 +297,12 @@ export default function CodexDashboard() {
 
       {/* Batalhas */}
       <SectionHeader
-        title="Batalhas"
+        title={t('Batalhas')}
         action={
-          <Button small title="⚔️ Nova batalha" onPress={newBattle} />
+          <Button small title={`⚔️ ${t('Nova batalha')}`} onPress={newBattle} />
         }
       />
-      {battles.length === 0 && <Muted>Nenhuma batalha em andamento.</Muted>}
+      {battles.length === 0 && <Muted>{t('Nenhuma batalha em andamento.')}</Muted>}
       {battles.map((b) => {
         const m = codex.monsters.find((x) => x.id === b.foes[0]?.monsterId);
         const hp = b.foes.reduce((n, f) => n + f.hp, 0);
@@ -312,8 +314,8 @@ export default function CodexDashboard() {
               <View style={{ flex: 1 }}>
                 <Text style={text.strong}>⚔️ {foeNames(b, codex.monsters)}</Text>
                 <Muted>
-                  {b.status === 'vitoria' ? '🏆 Vitória — distribuir XP' : `Rodada ${b.round} · ❤️ ${hp}/${maxHp}`} ·{' '}
-                  {b.participants.length} participante(s)
+                  {b.status === 'vitoria' ? `🏆 ${t('Vitória — distribuir XP')}` : `${t('Rodada {n}', { n: b.round })} · ❤️ ${hp}/${maxHp}`} ·{' '}
+                  {t('{n} participante(s)', { n: b.participants.length })}
                 </Muted>
               </View>
             </View>
@@ -325,34 +327,34 @@ export default function CodexDashboard() {
       <LevelUpBlock
         rows={levelRows}
         onClear={clearLevelUps}
-        emptyText="Nenhum evento de nível."
-        pendingWarning="Os eventos pendentes serão descartados sem recompensas. O nível dos personagens não muda."
+        emptyText={t('Nenhum evento de nível.')}
+        pendingWarning={t('Os eventos pendentes serão descartados sem recompensas. O nível dos personagens não muda.')}
       />
 
       {/* Jogadores */}
       <SectionHeader
-        title={`Jogadores (${players.length})`}
+        title={t('Jogadores ({n})', { n: players.length })}
         action={
           players.length > 0 && (
-            <Button small title="🎁 Dar XP / itens" onPress={() => router.push({ pathname: '/codex/recompensa', params: { codexId: codex.id } })} />
+            <Button small title={`🎁 ${t('Dar XP / itens')}`} onPress={() => router.push({ pathname: '/codex/recompensa', params: { codexId: codex.id } })} />
           )
         }
       />
-      {players.length === 0 && <Muted>Nenhum personagem entrou ainda. Compartilhe o código acima.</Muted>}
+      {players.length === 0 && <Muted>{t('Nenhum personagem entrou ainda. Compartilhe o código acima.')}</Muted>}
       {players.map((p) => (
         <Card key={p.id}>
           <View style={styles.row}>
             <Avatar uri={p.photoUri} name={p.name} size={44} />
             <View style={{ flex: 1 }}>
               <Text style={text.strong}>{p.name}</Text>
-              <Muted>Classe: {classLabel(p.classId)}</Muted>
+              <Muted>{t('Classe: {klass}', { klass: classLabel(p.classId) })}</Muted>
               <View style={styles.playerStats}>
-                <IconStat icon={<StarIcon />}>Nível {p.level}</IconStat>
-                <IconStat icon={<CostIcon kind="magica" />}>{p.abilities.length} habilidade(s)</IconStat>
+                <IconStat icon={<StarIcon />}>{t('Nível {level}', { level: p.level })}</IconStat>
+                <IconStat icon={<CostIcon kind="magica" />}>{t('{n} habilidade(s)', { n: p.abilities.length })}</IconStat>
                 <GoldAmount value={p.gold} size={14} />
               </View>
             </View>
-            <Button small variant="secondary" title="Restaurar" onPress={() => restore(p.id)} />
+            <Button small variant="secondary" title={t('Restaurar')} onPress={() => restore(p.id)} />
           </View>
           <CharacterBars character={p} showXp />
           <View style={styles.goldRow}>
@@ -360,21 +362,21 @@ export default function CodexDashboard() {
             <Button small variant="secondary" icon={<CoinIcon />} title="+10" style={{ flex: 1 }} onPress={() => changeGold(p.id, 10)} />
             <Button small variant="secondary" icon={<CoinIcon />} title="+50" style={{ flex: 1 }} onPress={() => changeGold(p.id, 50)} />
           </View>
-          <Button small variant="danger" title="🚪 Remover do Codex" onPress={() => confirmRemove(p.id, p.name)} />
+          <Button small variant="danger" title={`🚪 ${t('Remover do Codex')}`} onPress={() => confirmRemove(p.id, p.name)} />
         </Card>
       ))}
 
       {/* Monstros */}
       <SectionHeader
-        title="Monstros"
+        title={t('Monstros')}
         action={
           <View style={styles.inline}>
-            <Button small variant="secondary" title="Bestiário IA" onPress={() => router.push({ pathname: '/codex/bestiario', params: { codexId: codex.id } })} />
-            <Button small variant="secondary" title="+ Criar" onPress={() => router.push({ pathname: '/monstro/editar', params: { codexId: codex.id } })} />
+            <Button small variant="secondary" title={t('Bestiário IA')} onPress={() => router.push({ pathname: '/codex/bestiario', params: { codexId: codex.id } })} />
+            <Button small variant="secondary" title={t('+ Criar')} onPress={() => router.push({ pathname: '/monstro/editar', params: { codexId: codex.id } })} />
           </View>
         }
       />
-      {codex.monsters.length === 0 && <Muted>Adicione monstros do bestiário ou crie os seus.</Muted>}
+      {codex.monsters.length === 0 && <Muted>{t('Adicione monstros do bestiário ou crie os seus.')}</Muted>}
       {codex.monsters.map((m) => (
         <Card
           key={m.id}
@@ -390,7 +392,7 @@ export default function CodexDashboard() {
               <MonsterStats
                 hitPoints={m.hitPoints}
                 armor={m.armor}
-                extra={`${m.abilities.length} habilidade(s) · ${m.loot.length} item(ns) de espólio`}
+                extra={t('{n} habilidade(s) · {m} item(ns) de espólio', { n: m.abilities.length, m: m.loot.length })}
               />
             </View>
           </View>
@@ -399,9 +401,9 @@ export default function CodexDashboard() {
 
       {/* Locais */}
       <SectionHeader
-        title="Locais"
+        title={t('Locais')}
         action={
-          <Button small variant="secondary" title="+ Criar" onPress={() => router.push({ pathname: '/codex/loja', params: { codexId: codex.id } })} />
+          <Button small variant="secondary" title={t('+ Criar')} onPress={() => router.push({ pathname: '/codex/loja', params: { codexId: codex.id } })} />
         }
       />
       <View style={styles.inline}>
@@ -416,9 +418,9 @@ export default function CodexDashboard() {
             <View style={styles.row}>
               <Text style={{ fontSize: 28 }}>💰</Text>
               <View style={{ flex: 1 }}>
-                <Text style={text.strong}>Espólios · {foeNames(b, codex.monsters)}</Text>
+                <Text style={text.strong}>{t('Espólios')} · {foeNames(b, codex.monsters)}</Text>
                 <Muted>
-                  Gerado pelo sistema · vez de {looter?.name ?? '?'} · {b.loot!.items.reduce((n, i) => n + i.quantity, 0)} item(ns)
+                  {t('Gerado pelo sistema · vez de {name} · {n} item(ns)', { name: looter?.name ?? '?', n: b.loot!.items.reduce((n, i) => n + i.quantity, 0) })}
                 </Muted>
               </View>
             </View>
@@ -432,7 +434,7 @@ export default function CodexDashboard() {
             <View style={{ flex: 1 }}>
               <Text style={text.strong}>{s.name}</Text>
               <Muted>
-                {s.items.length} item(ns) · visível para {s.visibleTo.length} jogador(es)
+                {t('{n} item(ns) · visível para {m} jogador(es)', { n: s.items.length, m: s.visibleTo.length })}
               </Muted>
             </View>
           </View>
@@ -442,11 +444,11 @@ export default function CodexDashboard() {
       <View style={[styles.inline, { marginTop: spacing.xl }]}>
         <Button
           variant="secondary"
-          title="Editar Codex"
+          title={t('Editar Codex')}
           style={{ flex: 1 }}
           onPress={() => router.push({ pathname: '/codex/editar', params: { id: codex.id } })}
         />
-        <Button variant="danger" title="Apagar" style={{ flex: 1 }} onPress={confirmDelete} />
+        <Button variant="danger" title={t('Apagar')} style={{ flex: 1 }} onPress={confirmDelete} />
       </View>
     </Screen>
   );

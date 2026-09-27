@@ -8,8 +8,10 @@ import { startBattle } from '@/lib/engine';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
 import { MAX_FOES, type Terrain } from '@/lib/types';
+import { useT } from '@/lib/i18n';
 
 export default function NewBattle() {
+  const { t, tx } = useT();
   const params = useLocalSearchParams<{ codexId: string; monsterId?: string }>();
   const { codexes, characters, act } = useStore();
   const codex = codexes.find((c) => c.id === params.codexId);
@@ -32,7 +34,7 @@ export default function NewBattle() {
 
   const start = () => {
     if (monsterIds.length === 0) {
-      Alert.alert('Escolha pelo menos um monstro');
+      Alert.alert(t('Escolha pelo menos um monstro.'));
       return;
     }
     let battleId: string | undefined;
@@ -42,7 +44,7 @@ export default function NewBattle() {
       return result;
     });
     if (error || !battleId) {
-      Alert.alert('Não foi possível iniciar', error ?? 'Erro desconhecido.');
+      Alert.alert(t('Não foi possível iniciar'), error ? tx(error) : t('Erro desconhecido.'));
       return;
     }
     // Volta ao painel do Codex, que abre a batalha nova na aba "Batalhas".
@@ -51,11 +53,11 @@ export default function NewBattle() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Nova batalha' }} />
+      <Stack.Screen options={{ title: t('Nova batalha') }} />
 
-      <SectionHeader title={`Monstros (${monsterIds.length}/${MAX_FOES})`} />
-      {monsters.length === 0 && <Muted>Nenhum monstro disponível. Adicione monstros ao Codex.</Muted>}
-      {monsters.length > 1 && <Muted>Escolha até {MAX_FOES} monstros: cada um tem vida, turno e iniciativa próprios.</Muted>}
+      <SectionHeader title={t('Monstros ({n}/{max})', { n: monsterIds.length, max: MAX_FOES })} />
+      {monsters.length === 0 && <Muted>{t('Nenhum monstro disponível. Adicione monstros ao Codex.')}</Muted>}
+      {monsters.length > 1 && <Muted>{t('Escolha até {max} monstros: cada um tem vida, turno e iniciativa próprios.', { max: MAX_FOES })}</Muted>}
       {monsters.map((m) => {
         const chosen = monsterIds.includes(m.id);
         const full = !chosen && monsterIds.length >= MAX_FOES;
@@ -81,14 +83,14 @@ export default function NewBattle() {
         );
       })}
 
-      <SectionHeader title="Cenário" />
+      <SectionHeader title={t('Cenário')} />
       <View style={styles.preview}>
         <PixelScene terrain={terrain} />
       </View>
       <TerrainPicker value={terrain} onChange={setTerrain} />
 
-      <SectionHeader title="Participantes" />
-      {players.length === 0 && <Muted>Nenhum jogador no Codex.</Muted>}
+      <SectionHeader title={t('Participantes')} />
+      {players.length === 0 && <Muted>{t('Nenhum jogador no Codex.')}</Muted>}
       {players.map((p) => {
         const dead = p.hp <= 0;
         const busy = busyCharacters.has(p.id);
@@ -97,15 +99,15 @@ export default function NewBattle() {
             key={p.id}
             label={p.name}
             uri={p.photoUri}
-            detail={dead ? '☠️ Sem vida — restaure no painel do Codex' : busy ? 'Já está em outra batalha' : `Nível ${p.level} · ❤️ ${p.hp}/${p.maxHp}`}
+            detail={dead ? `☠️ ${t('Sem vida — restaure no painel do Codex')}` : busy ? t('Já está em outra batalha') : `${t('Nível {level}', { level: p.level })} · ❤️ ${p.hp}/${p.maxHp}`}
             checked={selected.includes(p.id)}
             onToggle={() => !dead && !busy && toggle(p.id)}
           />
         );
       })}
 
-      <Muted>A ordem dos turnos é definida por um d20 de iniciativa para cada participante e para cada monstro.</Muted>
-      <Button title="⚔️ Iniciar batalha" disabled={monsterIds.length === 0 || selected.length === 0} onPress={start} />
+      <Muted>{t('A ordem dos turnos é definida por um d20 de iniciativa para cada participante e para cada monstro.')}</Muted>
+      <Button title={`⚔️ ${t('Iniciar batalha')}`} disabled={monsterIds.length === 0 || selected.length === 0} onPress={start} />
     </Screen>
   );
 }

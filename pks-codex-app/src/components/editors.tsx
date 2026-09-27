@@ -7,6 +7,7 @@ import { STATUS_INFO, STATUS_TYPES } from '@/lib/rules';
 import type { Ability, AbilityKind, Attribute, Item, Mount, ShopItem, StatusType } from '@/lib/types';
 import { BlastIcon, CostIcon } from './monster-stats';
 import { Avatar, Button, SectionHeader } from './ui';
+import { useT } from '@/lib/i18n';
 
 /** Converte texto digitado em número inteiro não negativo. */
 export const toInt = (value: string) => Math.max(0, parseInt(value.replace(/\D/g, ''), 10) || 0);
@@ -16,8 +17,9 @@ function Input(props: ComponentProps<typeof TextInput>) {
 }
 
 function RemoveButton({ onPress }: { onPress: () => void }) {
+  const { t } = useT();
   return (
-    <Pressable accessibilityLabel="Remover" hitSlop={8} onPress={onPress} style={styles.remove}>
+    <Pressable accessibilityLabel={t('Remover')} hitSlop={8} onPress={onPress} style={styles.remove}>
       <Text style={styles.removeText}>✕</Text>
     </Pressable>
   );
@@ -36,12 +38,13 @@ export function PhotoField({
   onPick: () => void;
   onRemove: () => void;
 }) {
+  const { t } = useT();
   return (
     <View style={styles.photoRow}>
       <Avatar uri={uri} emoji={emoji} name={name} size={88} />
       <View style={{ flex: 1, gap: spacing.sm }}>
-        <Button small variant="secondary" title={uri ? 'Trocar foto' : 'Escolher foto'} onPress={onPick} />
-        {uri && <Button small variant="ghost" title="Remover foto" onPress={onRemove} />}
+        <Button small variant="secondary" title={uri ? t('Trocar foto') : t('Escolher foto')} onPress={onPick} />
+        {uri && <Button small variant="ghost" title={t('Remover foto')} onPress={onRemove} />}
       </View>
     </View>
   );
@@ -52,6 +55,7 @@ export function PhotoField({
  * o ✕ remove. Usada em habilidades, itens, itens de loja e montarias.
  */
 export function PhotoThumb({ uri, onChange, size = 56, placeholder = '📷' }: { uri?: string; onChange: (uri?: string) => void; size?: number; placeholder?: string }) {
+  const { t } = useT();
   const pick = async () => {
     const photo = await pickPhoto(SMALL_PHOTO);
     if (photo) onChange(photo);
@@ -60,14 +64,14 @@ export function PhotoThumb({ uri, onChange, size = 56, placeholder = '📷' }: {
     <View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={uri ? 'Trocar foto' : 'Adicionar foto'}
+        accessibilityLabel={uri ? t('Trocar foto') : t('Adicionar foto')}
         onPress={pick}
         style={[styles.thumb, { width: size, height: size }]}
       >
         {uri ? <Image source={{ uri }} style={{ width: '100%', height: '100%' }} /> : <Text style={{ fontSize: size * 0.4 }}>{placeholder}</Text>}
       </Pressable>
       {uri && (
-        <Pressable accessibilityLabel="Remover foto" hitSlop={8} onPress={() => onChange(undefined)} style={styles.thumbRemove}>
+        <Pressable accessibilityLabel={t('Remover foto')} hitSlop={8} onPress={() => onChange(undefined)} style={styles.thumbRemove}>
           <Text style={styles.thumbRemoveText}>✕</Text>
         </Pressable>
       )}
@@ -84,12 +88,13 @@ const KINDS: { kind: AbilityKind; label: string }[] = [
 
 /** Campos de uma habilidade: nome, tipo, custo (mana/estamina), dano base e descrição. */
 export function AbilityFields<T extends Ability>({ value, onChange }: { value: T; onChange: (v: T) => void }) {
+  const { t } = useT();
   const set = (patch: Partial<Ability>) => onChange({ ...value, ...patch });
   return (
     <View style={styles.rowFields}>
       <View style={[styles.inline, { alignItems: 'center' }]}>
         <PhotoThumb uri={value.photoUri} onChange={(photoUri) => set({ photoUri })} placeholder="✨" />
-        <Input style={{ flex: 1 }} placeholder="Nome da habilidade" value={value.name} onChangeText={(name) => set({ name })} />
+        <Input style={{ flex: 1 }} placeholder={t('Nome da habilidade')} value={value.name} onChangeText={(name) => set({ name })} />
       </View>
       <View style={styles.inline}>
         {KINDS.map(({ kind, label }) => (
@@ -101,7 +106,7 @@ export function AbilityFields<T extends Ability>({ value, onChange }: { value: T
             style={[styles.chip, styles.kindChip, value.kind === kind && styles.chipActive]}
           >
             <CostIcon kind={kind} />
-            <Text style={[styles.chipText, value.kind === kind && styles.chipTextActive]}>{label}</Text>
+            <Text style={[styles.chipText, value.kind === kind && styles.chipTextActive]}>{t(label)}</Text>
           </Pressable>
         ))}
       </View>
@@ -109,19 +114,19 @@ export function AbilityFields<T extends Ability>({ value, onChange }: { value: T
         <View style={{ flex: 1, gap: 2 }}>
           <View style={styles.labelRow}>
             <CostIcon kind={value.kind} />
-            <Text style={styles.miniLabel}>Custo de {value.kind === 'magica' ? 'mana' : 'estamina'}</Text>
+            <Text style={styles.miniLabel}>{value.kind === 'magica' ? t('Custo de mana') : t('Custo de estamina')}</Text>
           </View>
           <Input keyboardType="number-pad" value={String(value.cost)} onChangeText={(v) => set({ cost: toInt(v) })} />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <View style={styles.labelRow}>
             <BlastIcon />
-            <Text style={styles.miniLabel}>Dano base</Text>
+            <Text style={styles.miniLabel}>{t('Dano base')}</Text>
           </View>
-          <Input placeholder="Ex.: 2d6 + 3" value={value.baseDamage} onChangeText={(baseDamage) => set({ baseDamage })} />
+          <Input placeholder={t('Ex.: 2d6 + 3')} value={value.baseDamage} onChangeText={(baseDamage) => set({ baseDamage })} />
         </View>
       </View>
-      <Text style={styles.miniLabel}>Status que pode causar (o sistema sorteia a chance)</Text>
+      <Text style={styles.miniLabel}>{t('Status que pode causar (o sistema sorteia a chance)')}</Text>
       <View style={styles.wrap}>
         {[undefined, ...STATUS_TYPES].map((status: StatusType | undefined) => {
           const active = value.status === status;
@@ -134,7 +139,7 @@ export function AbilityFields<T extends Ability>({ value, onChange }: { value: T
               style={[styles.chip, styles.chipSmall, active && styles.chipActive]}
             >
               <Text style={[styles.chipText, status && { color: STATUS_INFO[status].color }, active && styles.chipTextActive]}>
-                {status ? `${STATUS_INFO[status].emoji} ${STATUS_INFO[status].label}` : 'Nenhum'}
+                {status ? `${STATUS_INFO[status].emoji} ${t(STATUS_INFO[status].label)}` : t('Nenhum')}
               </Text>
             </Pressable>
           );
@@ -143,7 +148,7 @@ export function AbilityFields<T extends Ability>({ value, onChange }: { value: T
       {value.status && (
         <View style={{ gap: 2 }}>
           <Text style={[styles.miniLabel, { color: STATUS_INFO[value.status].color }]}>
-            Chance de {STATUS_INFO[value.status].label.toLowerCase()} (%) — {STATUS_INFO[value.status].effect}
+            {t('Chance de {status} (%) — {effect}', { status: t(STATUS_INFO[value.status].label).toLowerCase(), effect: STATUS_INFO[value.status].effect })}
           </Text>
           <Input
             keyboardType="number-pad"
@@ -152,17 +157,18 @@ export function AbilityFields<T extends Ability>({ value, onChange }: { value: T
           />
         </View>
       )}
-      <Input placeholder="Descrição / efeito" multiline value={value.description} onChangeText={(description) => set({ description })} />
+      <Input placeholder={t('Descrição / efeito')} multiline value={value.description} onChangeText={(description) => set({ description })} />
     </View>
   );
 }
 
 export function AbilityListEditor({ value, onChange }: { value: Ability[]; onChange: (v: Ability[]) => void }) {
+  const { t } = useT();
   return (
     <View style={styles.list}>
       <SectionHeader
-        title="Habilidades"
-        action={<Button small variant="secondary" title="+ Adicionar" onPress={() => onChange([...value, emptyAbility()])} />}
+        title={t('Habilidades')}
+        action={<Button small variant="secondary" title={t('+ Adicionar')} onPress={() => onChange([...value, emptyAbility()])} />}
       />
       {value.map((a) => (
         <View key={a.id} style={styles.row}>
@@ -188,6 +194,7 @@ export function ItemListEditor({
   /** Itens prontos: tocar adiciona à lista (ou soma 1 se já estiver nela). */
   suggestions?: ItemSuggestion[];
 }) {
+  const { t } = useT();
   const update = (id: string, patch: Partial<Item>) => onChange(value.map((i) => (i.id === id ? { ...i, ...patch } : i)));
   const pick = (s: ItemSuggestion) => {
     const key = s.name.trim().toLowerCase();
@@ -199,7 +206,7 @@ export function ItemListEditor({
     <View style={styles.list}>
       <SectionHeader
         title={title}
-        action={<Button small variant="secondary" title="+ Adicionar" onPress={() => onChange([...value, { id: newId(), name: '', quantity: 1, description: '' }])} />}
+        action={<Button small variant="secondary" title={t('+ Adicionar')} onPress={() => onChange([...value, { id: newId(), name: '', quantity: 1, description: '' }])} />}
       />
       {!!suggestions?.length && (
         <View style={styles.wrap}>
@@ -215,16 +222,16 @@ export function ItemListEditor({
           <PhotoThumb uri={i.photoUri} onChange={(photoUri) => update(i.id, { photoUri })} placeholder="🎒" />
           <View style={styles.rowFields}>
             <View style={styles.inline}>
-              <Input style={{ flex: 1 }} placeholder="Nome do item" value={i.name} onChangeText={(name) => update(i.id, { name })} />
+              <Input style={{ flex: 1 }} placeholder={t('Nome do item')} value={i.name} onChangeText={(name) => update(i.id, { name })} />
               <Input
                 style={styles.number}
-                placeholder="Qtd"
+                placeholder={t('Qtd')}
                 keyboardType="number-pad"
                 value={String(i.quantity)}
                 onChangeText={(v) => update(i.id, { quantity: toInt(v) })}
               />
             </View>
-            <Input placeholder="Descrição" value={i.description} onChangeText={(description) => update(i.id, { description })} />
+            <Input placeholder={t('Descrição')} value={i.description} onChangeText={(description) => update(i.id, { description })} />
           </View>
           <RemoveButton onPress={() => onChange(value.filter((x) => x.id !== i.id))} />
         </View>
@@ -235,19 +242,20 @@ export function ItemListEditor({
 
 /** Atributos com nome e valor livres: cada Codex tem os seus (Força, Destreza, Vitalidade...). */
 export function AttributeListEditor({ value, onChange }: { value: Attribute[]; onChange: (v: Attribute[]) => void }) {
+  const { t } = useT();
   const update = (id: string, patch: Partial<Attribute>) => onChange(value.map((a) => (a.id === id ? { ...a, ...patch } : a)));
   return (
     <View style={styles.list}>
       <SectionHeader
-        title="Atributos"
-        action={<Button small variant="secondary" title="+ Adicionar" onPress={() => onChange([...value, { id: newId(), name: '', value: 10 }])} />}
+        title={t('Atributos')}
+        action={<Button small variant="secondary" title={t('+ Adicionar')} onPress={() => onChange([...value, { id: newId(), name: '', value: 10 }])} />}
       />
       {value.map((a) => (
         <View key={a.id} style={[styles.row, styles.attributeRow]}>
-          <Input style={{ flex: 1 }} placeholder="Ex.: Força" value={a.name} onChangeText={(name) => update(a.id, { name })} />
+          <Input style={{ flex: 1 }} placeholder={t('Ex.: Força')} value={a.name} onChangeText={(name) => update(a.id, { name })} />
           <Input
             style={styles.number}
-            placeholder="Valor"
+            placeholder={t('Valor')}
             keyboardType="number-pad"
             value={String(a.value)}
             onChangeText={(v) => update(a.id, { value: toInt(v) })}
@@ -261,6 +269,7 @@ export function AttributeListEditor({ value, onChange }: { value: Attribute[]; o
 
 /** Itens à venda num local. `mounts`: montarias do Codex que podem ser postas à venda. */
 export function ShopItemListEditor({ value, onChange, mounts = [] }: { value: ShopItem[]; onChange: (v: ShopItem[]) => void; mounts?: Mount[] }) {
+  const { t } = useT();
   const update = (id: string, patch: Partial<ShopItem>) => onChange(value.map((i) => (i.id === id ? { ...i, ...patch } : i)));
   const forSale = mounts.filter((m) => !value.some((i) => i.mountId === m.id));
   const sellMount = (m: Mount) =>
@@ -268,14 +277,14 @@ export function ShopItemListEditor({ value, onChange, mounts = [] }: { value: Sh
   return (
     <View style={styles.list}>
       <SectionHeader
-        title="Itens à venda"
-        action={<Button small variant="secondary" title="+ Adicionar" onPress={() => onChange([...value, { id: newId(), name: '', price: 0, description: '' }])} />}
+        title={t('Itens à venda')}
+        action={<Button small variant="secondary" title={t('+ Adicionar')} onPress={() => onChange([...value, { id: newId(), name: '', price: 0, description: '' }])} />}
       />
       {forSale.length > 0 && (
         <View style={styles.wrap}>
           {forSale.map((m) => (
             <Pressable key={m.id} accessibilityRole="button" onPress={() => sellMount(m)} style={[styles.chip, styles.chipSmall]}>
-              <Text style={styles.chipText}>+ {m.emoji} {m.name} (montaria)</Text>
+              <Text style={styles.chipText}>+ {m.emoji} {m.name} ({t('montaria')})</Text>
             </Pressable>
           ))}
         </View>
@@ -290,24 +299,24 @@ export function ShopItemListEditor({ value, onChange, mounts = [] }: { value: Sh
             <PhotoThumb uri={i.photoUri} onChange={(photoUri) => update(i.id, { photoUri })} placeholder="🗡️" />
           )}
           <View style={styles.rowFields}>
-            {i.mountId && <Text style={styles.miniLabel}>🐎 Montaria: comprar dá a montaria (nome e foto vêm dela)</Text>}
+            {i.mountId && <Text style={styles.miniLabel}>🐎 {t('Montaria: comprar dá a montaria (nome e foto vêm dela)')}</Text>}
             <View style={styles.inline}>
               <Input
                 style={{ flex: 1 }}
-                placeholder="Nome do item"
+                placeholder={t('Nome do item')}
                 editable={!i.mountId}
                 value={i.name}
                 onChangeText={(name) => update(i.id, { name })}
               />
               <Input
                 style={styles.number}
-                placeholder="Preço"
+                placeholder={t('Preço')}
                 keyboardType="number-pad"
                 value={String(i.price)}
                 onChangeText={(v) => update(i.id, { price: toInt(v) })}
               />
             </View>
-            <Input placeholder="Descrição" value={i.description} onChangeText={(description) => update(i.id, { description })} />
+            <Input placeholder={t('Descrição')} value={i.description} onChangeText={(description) => update(i.id, { description })} />
           </View>
           <RemoveButton onPress={() => onChange(value.filter((x) => x.id !== i.id))} />
         </View>
