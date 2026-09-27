@@ -27,6 +27,14 @@
       "expo-router",
       "expo-status-bar",
       [
+        "expo-build-properties",
+        {
+          "android": {
+            "useLegacyPackaging": true
+          }
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "O PKS Codex usa suas fotos para a imagem do personagem e dos monstros.",
