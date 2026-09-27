@@ -242,7 +242,6 @@ npm test            # ou: scripts/check.ps1 (typecheck + testes)
 | Arquivo | Cobre |
 | --- | --- |
 | `tests/engine.test.js` | Iniciativa, turnos, vários monstros, armadura, defesa, custo de mana, status, fuga, espólios, XP, subida de nível, conversão de batalhas antigas e modo demonstração |
-| `tests/push.test.js` | Quando as notificações push de turno e de nível são enviadas |
 | `tests/sync.test.js` | Detecção de mudanças e sincronização dos documentos |
 | `tests/pixel-shapes.test.js` | Desenho dos ícones em pixel art |
 

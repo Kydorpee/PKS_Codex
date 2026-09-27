@@ -6,7 +6,6 @@ import { GameNotifier } from '@/components/game-notifier';
 import { Button } from '@/components/ui';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { firebaseConfigured } from '@/lib/firebase';
-import { usePushNotifications } from '@/lib/push';
 import { StoreProvider, useStore } from '@/lib/store';
 import { colors } from '@/lib/theme';
 
@@ -42,8 +41,7 @@ function SyncStatus() {
 }
 
 function Navigator() {
-  const { loaded, error, retry, uid } = useStore();
-  usePushNotifications(uid, loaded);
+  const { loaded, error, retry } = useStore();
   if (!loaded) {
     if (error) return <Message title="Sem conexão com o servidor" detail={error} onRetry={retry} />;
     return (
