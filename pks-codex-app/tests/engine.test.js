@@ -596,8 +596,10 @@ test('habilidade não custa nada quando o Mestre desliga a barra que a paga', ()
   data.codexes[0].sheet.resources = data.codexes[0].sheet.resources.map((r) => (r.key === 'mana' ? { ...r, enabled: false } : r));
   data.characters[0].mana = 0;
   data = ok(E.startBattle(data, 'cx', ['aranha'], ['a', 'b'], 'mar'));
-  const battle = data.codexes[0].battles[0];
-  const turn = E.currentTurn(battle);
-  const result = E.playerAction(data, 'cx', battle.id, turn, { kind: 'habilidade', abilityId: 'fb', roll: { sides: 20, value: 18 }, targetId: 'aranha' });
+  const battle = () => data.codexes[0].battles[0];
+  // A iniciativa é sorteada: se o monstro começa, ele passa a vez sem causar dano.
+  while (E.foeOf(battle(), E.currentTurn(battle()))) data = ok(E.monsterAction(data, 'cx', battle().id, { damage: 0 }));
+  const turn = E.currentTurn(battle());
+  const result = E.playerAction(data, 'cx', battle().id, turn, { kind: 'habilidade', abilityId: 'fb', roll: { sides: 20, value: 18 }, targetId: 'aranha' });
   assert.ok(!('error' in result), 'sem mana, mas a mana está desligada');
 });

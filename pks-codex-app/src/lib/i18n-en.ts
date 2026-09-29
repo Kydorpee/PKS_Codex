@@ -803,4 +803,15 @@ export const EN: Record<string, string> = {
   'Dê um nome a todo status de ação (ou remova os vazios).': 'Name every action stat (or remove the empty ones).',
   'Todo status de ação precisa de pelo menos um termo na fórmula.': 'Every action stat needs at least one term in its formula.',
   '{e} {name} usa {ability} em {target}.': '{e} {name} uses {ability} on {target}.',
+
+  // ——— Batalha: ficha e descrição das habilidades ———
+  'Toque num personagem para ver a ficha e as habilidades dele.': 'Tap a character to see their sheet and abilities.',
+  'Toque numa habilidade para ver o que ela faz antes de usar.': 'Tap an ability to see what it does before using it.',
+  'Você não tem o suficiente para pagar o custo.': "You don't have enough to pay the cost.",
+  'Informe o valor do dado acima para usar.': 'Enter the die value above to use it.',
+  'Usar {ability}': 'Use {ability}',
+  'Ver ficha': 'View sheet',
+  'Habilidade usada — o que ela faz': 'Ability used — what it does',
+  'Ver ficha de {name}': "View {name}'s sheet",
+  'Nenhuma habilidade.': 'No abilities.',
 };

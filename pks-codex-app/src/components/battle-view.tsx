@@ -4,6 +4,8 @@ import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'reac
 import { BattleLog, DicePanel, MonsterPanel, ParticipantList, TurnOrder } from './battle';
 import { Pulse } from './battle-fx';
 import { LootPanel } from './loot-panel';
+import { AbilityCard } from './ability-card';
+import { CharacterSheetModal } from './character-sheet-modal';
 import { CharacterBars } from './character-stats';
 import { CostIcon, DamageStat, IconStat, StarIcon } from './monster-stats';
 import { TerrainPicker } from './pixel-scene';
@@ -45,6 +47,8 @@ const toInt = (v: string) => Math.max(0, parseInt(v.replace(/\D/g, ''), 10) || 0
 export function BattleView({ codexId, battleId, characterId }: { codexId: string; battleId: string; characterId?: string }) {
   const { t, tx } = useT();
   const { codexes, characters, act } = useStore();
+  // Personagem cuja ficha está aberta (tocando nele na ordem de turnos, nos participantes ou na ação).
+  const [sheetId, setSheetId] = useState<string>();
   const codex = codexes.find((c) => c.id === codexId);
   const battle = codex?.battles.find((b) => b.id === battleId);
 
@@ -60,6 +64,7 @@ export function BattleView({ codexId, battleId, characterId }: { codexId: string
 
   const canRoll = battle.status === 'ativa' && (isMaster || turn === characterId);
   const participant = battle.participants.find((p) => p.characterId === characterId);
+  const openCharacter = setSheetId;
 
   return (
     <>
@@ -72,11 +77,11 @@ export function BattleView({ codexId, battleId, characterId }: { codexId: string
       <MonsterPanel battle={battle} monsters={codex.monsters} reveal={(id) => isMaster || !!participant?.observedIds.includes(id)} />
 
       <Muted>{t('Rodada {n}', { n: battle.round })}</Muted>
-      <TurnOrder battle={battle} monsters={codex.monsters} characters={characters} />
+      <TurnOrder battle={battle} monsters={codex.monsters} characters={characters} onOpenCharacter={openCharacter} />
 
       {battle.status === 'ativa' &&
         (isMaster ? (
-          <MasterPanel codex={codex} battle={battle} characters={characters} run={run} />
+          <MasterPanel codex={codex} battle={battle} characters={characters} run={run} onOpenCharacter={openCharacter} />
         ) : viewer ? (
           <PlayerPanel codex={codex} battle={battle} viewer={viewer} characters={characters} run={run} />
         ) : null)}
@@ -92,10 +97,13 @@ export function BattleView({ codexId, battleId, characterId }: { codexId: string
       )}
 
       <SectionHeader title={t('Participantes')} />
-      <ParticipantList battle={battle} characters={characters} />
+      <Muted>{t('Toque num personagem para ver a ficha e as habilidades dele.')}</Muted>
+      <ParticipantList battle={battle} characters={characters} onOpenCharacter={openCharacter} />
 
       <SectionHeader title={t('Registro')} />
       <BattleLog battle={battle} />
+
+      <CharacterSheetModal characterId={sheetId} onClose={() => setSheetId(undefined)} />
     </>
   );
 }
@@ -105,6 +113,8 @@ type PanelProps = {
   battle: Battle;
   characters: Character[];
   run: (rule: (d: Data) => Result) => void;
+  /** Abre a ficha de um personagem. */
+  onOpenCharacter?: (id: string) => void;
 };
 
 const monsterName = (codex: Codex, id: string | undefined) => codex.monsters.find((m) => m.id === id)?.name ?? 'Monstro';
@@ -132,6 +142,8 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
   const [dice, setDice] = useState('');
   const [targetId, setTargetId] = useState<string>();
   const [category, setCategory] = useState<AbilityCategory>();
+  // Habilidade aberta no menu: mostra o que ela faz antes de usar.
+  const [openAbility, setOpenAbility] = useState<string>();
   const turn = currentTurn(battle);
   const participant = battle.participants.find((p) => p.characterId === viewer.id);
 
@@ -280,16 +292,30 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
                 ))}
               </View>
             )}
+            <Muted>{t('Toque numa habilidade para ver o que ela faz antes de usar.')}</Muted>
             {shownList.map(({ ability: a, from }) => {
+              const open = openAbility === a.id;
+              const payable = canPay(viewer, codex, a);
               return (
-                <Button
-                  key={a.id}
-                  variant="secondary"
-                  disabled={!canPay(viewer, codex, a) || !rollOk}
-                  icon={a.photoUri ? <Image source={{ uri: a.photoUri }} style={styles.abilityPhoto} /> : <CostIcon kind={a.kind} />}
-                  title={`${from ? `${from} · ` : ''}${a.name} · ${tx(abilityCost(a, codex))}${a.status ? ` · ${STATUS_INFO[a.status].emoji}` : ''}${isOffensive(a) ? '' : ` · ${t('sem alvo')}`}`}
-                  onPress={() => act({ kind: 'habilidade', abilityId: a.id, roll, targetId: target?.monsterId })}
-                />
+                <View key={a.id} style={{ gap: spacing.xs }}>
+                  <Button
+                    variant={open ? 'primary' : 'secondary'}
+                    icon={a.photoUri ? <Image source={{ uri: a.photoUri }} style={styles.abilityPhoto} /> : <CostIcon kind={a.kind} />}
+                    title={`${open ? '▾ ' : '▸ '}${from ? `${from} · ` : ''}${a.name} · ${tx(abilityCost(a, codex))}${a.status ? ` · ${STATUS_INFO[a.status].emoji}` : ''}${isOffensive(a) ? '' : ` · ${t('sem alvo')}`}`}
+                    onPress={() => setOpenAbility(open ? undefined : a.id)}
+                  />
+                  {open && (
+                    <AbilityCard ability={a} codex={codex}>
+                      {!payable && <Muted>{t('Você não tem o suficiente para pagar o custo.')}</Muted>}
+                      {payable && !rollOk && <Muted>{t('Informe o valor do dado acima para usar.')}</Muted>}
+                      <Button
+                        title={`✨ ${t('Usar {ability}', { ability: a.name })}`}
+                        disabled={!payable || !rollOk}
+                        onPress={() => act({ kind: 'habilidade', abilityId: a.id, roll, targetId: target?.monsterId })}
+                      />
+                    </AbilityCard>
+                  )}
+                </View>
               );
             })}
             <Muted>{t('Habilidades sem dano (cura, apoio) não dependem da armadura.')}</Muted>
@@ -420,7 +446,7 @@ const aliveCharacters = (battle: Battle, characters: Character[]) =>
 
 const defenseOf = (battle: Battle, id: string) => battle.participants.find((p) => p.characterId === id)?.defense;
 
-function MasterPanel({ codex, battle, characters, run }: PanelProps) {
+function MasterPanel({ codex, battle, characters, run, onOpenCharacter }: PanelProps) {
   const { t } = useT();
   const turn = currentTurn(battle);
 
@@ -435,7 +461,14 @@ function MasterPanel({ codex, battle, characters, run }: PanelProps) {
       {battle.pending?.kind === 'fuga' ? (
         <FleeCard key={`${battle.round}:${battle.turnIndex}`} codex={codex} battle={battle} characters={characters} run={run} />
       ) : battle.pending ? (
-        <PendingCard key={`${battle.round}:${battle.turnIndex}`} codex={codex} battle={battle} characters={characters} run={run} />
+        <PendingCard
+          key={`${battle.round}:${battle.turnIndex}`}
+          codex={codex}
+          battle={battle}
+          characters={characters}
+          run={run}
+          onOpenCharacter={onOpenCharacter}
+        />
       ) : foeOf(battle, turn) ? (
         // A chave zera as escolhas a cada turno de monstro.
         <FoeTurnCard key={`${battle.round}:${turn}`} codex={codex} battle={battle} characters={characters} run={run} />
@@ -449,6 +482,7 @@ function MasterPanel({ codex, battle, characters, run }: PanelProps) {
               title={t('Abrir visão do jogador')}
               onPress={() => router.push({ pathname: '/batalha/[id]', params: { id: battle.id, codexId: codex.id, characterId: turn } })}
             />
+            <Button small variant="secondary" title={`📜 ${t('Ver ficha')}`} onPress={() => onOpenCharacter?.(turn)} />
             <Button small variant="secondary" title={`⏭️ ${t('Pular turno')}`} onPress={() => run((d) => skipTurn(d, codex.id, battle.id))} />
           </View>
         </Card>
@@ -514,7 +548,7 @@ function FleeCard({ codex, battle, characters, run }: PanelProps) {
 }
 
 /** O Mestre resolve a ação do jogador: dano no monstro, cura ou sem efeito. */
-function PendingCard({ codex, battle, characters, run }: PanelProps) {
+function PendingCard({ codex, battle, characters, run, onOpenCharacter }: PanelProps) {
   const { t, tx } = useT();
   const pending = battle.pending!;
   const foes = aliveFoes(battle);
@@ -548,7 +582,19 @@ function PendingCard({ codex, battle, characters, run }: PanelProps) {
           {armor !== undefined ? ` · ${t('acertou (armadura {armor})', { armor })}` : ''}
         </Text>
       )}
-      {pendingAbility && <DamageStat damage={pendingAbility.baseDamage} />}
+      {pendingAbility && (
+        <AbilityCard ability={pendingAbility} codex={codex}>
+          <Muted>{t('Habilidade usada — o que ela faz')}</Muted>
+        </AbilityCard>
+      )}
+      {pendingCharacter && (
+        <Button
+          small
+          variant="secondary"
+          title={`📜 ${t('Ver ficha de {name}', { name: pendingCharacter.name })}`}
+          onPress={() => onOpenCharacter?.(pendingCharacter.id)}
+        />
+      )}
       <StatusChance ability={pendingAbility} target={monsterName(codex, target?.monsterId)} />
       {healing ? (
         <View style={styles.actions}>

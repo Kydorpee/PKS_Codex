@@ -186,7 +186,18 @@ export function DicePanel({
   );
 }
 
-export function TurnOrder({ battle, monsters, characters }: { battle: Battle; monsters: Monster[]; characters: Character[] }) {
+export function TurnOrder({
+  battle,
+  monsters,
+  characters,
+  onOpenCharacter,
+}: {
+  battle: Battle;
+  monsters: Monster[];
+  characters: Character[];
+  /** Tocar num personagem abre a ficha dele. */
+  onOpenCharacter?: (id: string) => void;
+}) {
   const { t } = useT();
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.turns}>
@@ -199,6 +210,13 @@ export function TurnOrder({ battle, monsters, characters }: { battle: Battle; mo
         const p = battle.participants.find((x) => x.characterId === id);
         return (
           <Pulse key={id} active={current} style={[styles.turn, current && styles.turnCurrent, out && { opacity: 0.45 }]}>
+            <Pressable
+              accessibilityRole={foe ? undefined : 'button'}
+              accessibilityLabel={foe ? undefined : t('Ver ficha de {name}', { name: c?.name ?? '?' })}
+              disabled={!!foe || !onOpenCharacter}
+              onPress={() => onOpenCharacter?.(id)}
+              style={styles.turnPress}
+            >
             {foe ? (
               <Avatar uri={monster?.photoUri} emoji={monster?.emoji ?? '👹'} size={32} />
             ) : (
@@ -209,6 +227,7 @@ export function TurnOrder({ battle, monsters, characters }: { battle: Battle; mo
               {foe ? (monster?.name ?? t('Monstro')) : (c?.name ?? '?')}
             </Text>
             <Text style={styles.turnInit}>🎲 {battle.initiatives[id]}</Text>
+            </Pressable>
           </Pulse>
         );
       })}
@@ -216,7 +235,16 @@ export function TurnOrder({ battle, monsters, characters }: { battle: Battle; mo
   );
 }
 
-export function ParticipantList({ battle, characters }: { battle: Battle; characters: Character[] }) {
+export function ParticipantList({
+  battle,
+  characters,
+  onOpenCharacter,
+}: {
+  battle: Battle;
+  characters: Character[];
+  /** Tocar num personagem abre a ficha dele. */
+  onOpenCharacter?: (id: string) => void;
+}) {
   const { t } = useT();
   return (
     <>
@@ -225,7 +253,7 @@ export function ParticipantList({ battle, characters }: { battle: Battle; charac
         if (!c) return null;
         return (
           <HitFx key={p.characterId} fx={battle.fx} targetId={c.id}>
-            <Card style={isOut(battle, c) && { opacity: 0.55 }}>
+            <Card style={isOut(battle, c) && { opacity: 0.55 }} onPress={onOpenCharacter && (() => onOpenCharacter(c.id))}>
               <View style={styles.participantHeader}>
                 <Avatar uri={c.photoUri} name={c.name} size={36} />
                 <View style={{ flex: 1 }}>
@@ -237,6 +265,7 @@ export function ParticipantList({ battle, characters }: { battle: Battle; charac
                     {p.defense ? ` · ${t('defendendo (🎲 {roll})', { roll: diceLabel(p.defense) })}` : ''}
                   </Muted>
                 </View>
+                {onOpenCharacter && <Text style={text.accent}>›</Text>}
               </View>
               <CharacterBars character={c} />
             </Card>
@@ -354,6 +383,7 @@ const styles = StyleSheet.create({
     borderColor: colors.goldDim,
     backgroundColor: colors.surface,
   },
+  turnPress: { alignItems: 'center' },
   turnCurrent: { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.gold },
   turnName: { color: colors.text, fontSize: 12, fontWeight: '600' },
   turnInit: { color: colors.textMuted, fontSize: 11 },
