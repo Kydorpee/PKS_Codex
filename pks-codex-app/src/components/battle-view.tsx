@@ -29,11 +29,11 @@ import {
   type PlayerAction,
   type Result,
 } from '@/lib/engine';
-import { abilityGroups, DICE, findAbility, STATUS_INFO, STATUS_TYPES } from '@/lib/rules';
+import { abilityCost, abilityGroups, canPay, DICE, findAbility, STATUS_INFO, STATUS_TYPES } from '@/lib/rules';
 import { useT } from '@/lib/i18n';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
-import { costLabel, diceLabel, type Ability, type Battle, type Character, type Codex, type AbilityCategory, type DiceRoll, type Foe, type StatusType } from '@/lib/types';
+import { diceLabel, type Ability, type Battle, type Character, type Codex, type AbilityCategory, type DiceRoll, type Foe, type StatusType } from '@/lib/types';
 
 const toInt = (v: string) => Math.max(0, parseInt(v.replace(/\D/g, ''), 10) || 0);
 
@@ -281,14 +281,13 @@ function PlayerPanel({ codex, battle, viewer, characters, run }: PanelProps & { 
               </View>
             )}
             {shownList.map(({ ability: a, from }) => {
-              const pool = a.kind === 'magica' ? viewer.mana : viewer.stamina;
               return (
                 <Button
                   key={a.id}
                   variant="secondary"
-                  disabled={pool < a.cost || !rollOk}
+                  disabled={!canPay(viewer, codex, a) || !rollOk}
                   icon={a.photoUri ? <Image source={{ uri: a.photoUri }} style={styles.abilityPhoto} /> : <CostIcon kind={a.kind} />}
-                  title={`${from ? `${from} · ` : ''}${a.name} · ${tx(costLabel(a))}${a.status ? ` · ${STATUS_INFO[a.status].emoji}` : ''}${isOffensive(a) ? '' : ` · ${t('sem alvo')}`}`}
+                  title={`${from ? `${from} · ` : ''}${a.name} · ${tx(abilityCost(a, codex))}${a.status ? ` · ${STATUS_INFO[a.status].emoji}` : ''}${isOffensive(a) ? '' : ` · ${t('sem alvo')}`}`}
                   onPress={() => act({ kind: 'habilidade', abilityId: a.id, roll, targetId: target?.monsterId })}
                 />
               );

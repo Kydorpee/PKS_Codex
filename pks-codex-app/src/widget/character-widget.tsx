@@ -3,10 +3,10 @@
  * Só é carregado quando o módulo nativo existe (build de desenvolvimento), nunca no Expo Go.
  */
 import { FlexWidget, SvgWidget, TextWidget, type ColorProp } from 'react-native-android-widget';
-import { SHAPES, pixelSvg, type PixelShape } from '@/lib/pixel-shapes';
-import { xpToNext } from '@/lib/rules';
+import { SHAPES, pixelSvg, toShape, type PixelShape } from '@/lib/pixel-shapes';
+import { DEFAULT_RESOURCES, RESOURCE_FIELDS, enabledResources, xpToNext } from '@/lib/rules';
 import { colors, hpColor, palette } from '@/lib/theme';
-import type { Character } from '@/lib/types';
+import type { Character, CharacterSheet } from '@/lib/types';
 
 const c = (color: string) => color as ColorProp;
 
@@ -51,10 +51,13 @@ const frame = {
 export function CharacterWidget({
   character,
   codexName,
+  sheet,
   t,
 }: {
   character?: Character;
   codexName?: string;
+  /** Ficha do Codex do personagem (barras ligadas, cores e ícones). */
+  sheet?: CharacterSheet;
   /** Tradução no idioma escolhido no app (o widget roda fora do app). */
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
@@ -88,9 +91,13 @@ export function CharacterWidget({
         <Icon shape="coin" color={COIN.color} accent={COIN.accent} />
         <TextWidget text={String(character.gold)} style={{ fontSize: 12, fontWeight: 'bold', color: c(palette.gold) }} />
       </FlexWidget>
-      <BarRow shape="heart" value={character.hp} max={character.maxHp} color={hpColor(character.hp, character.maxHp)} />
-      <BarRow shape="drop" value={character.mana} max={character.maxMana} color={colors.mana} />
-      <BarRow shape="bolt" value={character.stamina} max={character.maxStamina} color={colors.stamina} />
+      {enabledResources(sheet ? { sheet } : undefined).map((r) => {
+        const { current, max } = RESOURCE_FIELDS[r.key];
+        const value = character[current];
+        const top = character[max];
+        const color = r.key === 'hp' && r.color === DEFAULT_RESOURCES[0].color ? hpColor(value, top) : r.color;
+        return <BarRow key={r.key} shape={toShape(r.icon)} value={value} max={top} color={color} />;
+      })}
       {!!codexName && (
         <TextWidget text={`📜 ${codexName}`} maxLines={1} truncate="END" style={{ fontSize: 11, color: c(colors.textOnDarkMuted) }} />
       )}

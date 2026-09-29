@@ -44,8 +44,9 @@ export type CodexClass = {
   offeredTo: string[];
 };
 
-export const costLabel = (a: Pick<Ability, 'kind' | 'cost'>) =>
-  `${a.cost} ${a.kind === 'magica' ? 'mana' : 'estamina'}`;
+/** Custo da habilidade com o nome da barra que paga (ex.: "5 mana"). `pool` vem da ficha do Codex. */
+export const costLabel = (a: Pick<Ability, 'kind' | 'cost'>, pool?: string) =>
+  `${a.cost} ${(pool ?? (a.kind === 'magica' ? 'mana' : 'estamina')).toLowerCase()}`;
 
 export type Item = {
   id: string;
@@ -69,7 +70,7 @@ export type Mount = {
 /** Categoria de uma habilidade do personagem: da classe, geral ou de uma montaria. */
 export type AbilityCategory = 'classe' | 'geral' | 'montaria';
 
-/** Atributo personalizável (Força, Destreza...): o jogador define na criação; o Mestre ajusta ao subir de nível. */
+/** Valor de um status base na ficha. O `id` é o do status base do Codex (ou de um atributo extra dado ao subir de nível). */
 export type Attribute = {
   id: string;
   name: string;
@@ -85,6 +86,8 @@ export type Character = {
   /** Raça do personagem (Humano, Elfo...), livre porque cada Codex tem as suas. */
   race: string;
   photoUri?: string;
+  /** História do personagem, escrita pelo jogador. */
+  story?: string;
   /** Somente leitura para o jogador: vêm de ofertas aceitas do Mestre. */
   abilities: Ability[];
   inventory: Item[];
@@ -96,8 +99,6 @@ export type Character = {
   classId?: string;
   /** Montarias do Codex que o personagem tem. */
   mountIds: string[];
-  /** Codex dos quais já recebeu o inventário inicial (não recebe de novo ao sair e voltar). */
-  startingItemsFrom?: string[];
   createdAt: number;
   level: number;
   /** XP acumulado dentro do nível atual. */
@@ -283,6 +284,56 @@ export type LevelUpEvent = {
   createdAt: number;
 };
 
+/** Papel de uma barra na batalha: a vida decide quem cai; mana paga habilidades mágicas; estamina, as físicas. */
+export type ResourceKey = 'hp' | 'mana' | 'stamina';
+
+/** Barra do personagem configurada pelo Mestre (nome, sigla, cor, ícone). A de vida é obrigatória. */
+export type ResourceDef = {
+  key: ResourceKey;
+  /** Mana e estamina podem ser desligadas: somem da ficha e as habilidades deixam de custar. */
+  enabled: boolean;
+  name: string;
+  abbr: string;
+  color: string;
+  /** Forma do ícone em pixel art (heart, drop, bolt...). */
+  icon: string;
+  /** Máximo inicial. Vazio = padrão. */
+  base?: number;
+  /** O jogador pode definir o próprio máximo. */
+  editable: boolean;
+};
+
+/** Status base (Força, Movimento...): valor guardado na ficha. */
+export type BaseStatDef = {
+  id: string;
+  name: string;
+  abbr: string;
+  /** Valor inicial. Vazio = padrão. */
+  base?: number;
+  /** O jogador pode alterar o valor. */
+  editable: boolean;
+};
+
+export type FormulaOp = '+' | '-' | '×' | '÷';
+
+/** Parte de uma fórmula: um status base ou um número. O primeiro termo ignora a operação. */
+export type FormulaTerm = { op: FormulaOp; statId?: string; value?: number };
+
+/** Status de ação (Poder de ataque...): calculado a partir dos status base, da esquerda para a direita. */
+export type ActionStatDef = {
+  id: string;
+  name: string;
+  abbr: string;
+  terms: FormulaTerm[];
+};
+
+/** Modelo de ficha do Codex: o que todo personagem tem ao entrar. */
+export type CharacterSheet = {
+  resources: ResourceDef[];
+  baseStats: BaseStatDef[];
+  actionStats: ActionStatDef[];
+};
+
 export type Codex = {
   id: string;
   /** Conta (Firebase) do Mestre. Vazio até o primeiro salvamento. */
@@ -299,12 +350,18 @@ export type Codex = {
   classes: CodexClass[];
   /** Montarias criadas pelo Mestre. */
   mounts: Mount[];
-  /** Classe atribuída a quem entra no Codex. */
+  /** Classe atribuída a quem entra no Codex. Vazio = entra sem classe. */
   startingClassId?: string;
   battles: Battle[];
   levelUps: LevelUpEvent[];
   /** Itens que todo personagem recebe ao entrar no Codex. */
   startingItems: Item[];
+  /** Barras e status de todo personagem do Codex. */
+  sheet: CharacterSheet;
+  /** Nome da moeda da campanha (Ouro, Créditos...). */
+  currencyName: string;
+  /** Moedas que cada personagem recebe ao entrar. Vazio = nenhuma. */
+  startingGold?: number;
   /** Regra do Mestre: jogadores podem adicionar itens na própria bolsa, além de comprar. */
   allowFreeInventory: boolean;
   createdAt: number;

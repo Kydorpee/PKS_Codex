@@ -546,3 +546,58 @@ test('personagem caído: a cura escolhida pelo Mestre levanta, e o Mestre pode l
   data.codexes[0].battles[0].participants[1].fled = true;
   assert.ok('error' in E.reviveCharacter(data, 'cx', battle().id, 'b', 5));
 });
+
+test('entrar no Codex dá a ficha do Mestre; sair apaga tudo menos aparência e história', () => {
+  const sheet = {
+    resources: [
+      { key: 'hp', enabled: true, name: 'Vida', abbr: 'PV', color: '#000', icon: 'heart', base: 30, editable: false },
+      { key: 'mana', enabled: false, name: 'Mana', abbr: 'PM', color: '#000', icon: 'drop', editable: false },
+      { key: 'stamina', enabled: true, name: 'Fôlego', abbr: 'FO', color: '#000', icon: 'bolt', editable: true },
+    ],
+    baseStats: [
+      { id: 'fa', name: 'Força', abbr: 'FA', base: 4, editable: false },
+      { id: 'mv', name: 'Movimento', abbr: 'MV', editable: true },
+    ],
+    actionStats: [{ id: 'pa', name: 'Poder de ataque', abbr: 'PA', terms: [{ op: '+', statId: 'fa' }, { op: '+', statId: 'mv' }, { op: '×', value: 2 }] }],
+  };
+  const codex = R.normalizeCodex({
+    ...setup().codexes[0],
+    sheet,
+    currencyName: 'Créditos',
+    startingGold: 25,
+    startingItems: [{ id: 'p', name: 'Poção', quantity: 2, description: '' }],
+    classes: [{ id: 'mago', name: 'Mago', emoji: '🔮', description: '', offeredTo: [] }],
+  });
+  const outside = R.withoutCodex({ ...character('a', 'Aria'), story: 'Veio do norte.', race: 'Elfo' });
+  assert.equal(outside.attributes.length, 0);
+  assert.equal(outside.gold, 0);
+
+  const inside = R.enterCodex(outside, codex);
+  assert.equal(inside.codexId, 'cx');
+  assert.equal(inside.maxHp, 30);
+  assert.equal(inside.maxMana, 0, 'barra desligada fica zerada');
+  assert.equal(inside.maxStamina, 10, 'valor vazio usa o padrão');
+  assert.equal(inside.gold, 25);
+  assert.equal(inside.inventory[0].quantity, 2);
+  assert.equal(inside.classId, undefined, 'sem classe inicial escolhida, entra sem classe');
+  assert.deepEqual(inside.attributes.map((a) => a.value), [4, 10]);
+  assert.equal(R.actionStatValue(inside, codex, sheet.actionStats[0]), 28, '(4 + 10) × 2');
+  assert.equal(R.formulaText(sheet.actionStats[0], sheet.baseStats), 'FA + MV × 2');
+
+  const left = R.withoutCodex(inside);
+  assert.equal(left.story, 'Veio do norte.');
+  assert.equal(left.race, 'Elfo');
+  assert.equal(left.inventory.length + left.abilities.length + left.attributes.length + left.gold, 0);
+});
+
+test('habilidade não custa nada quando o Mestre desliga a barra que a paga', () => {
+  let data = setup();
+  data.codexes[0] = R.normalizeCodex(data.codexes[0]);
+  data.codexes[0].sheet.resources = data.codexes[0].sheet.resources.map((r) => (r.key === 'mana' ? { ...r, enabled: false } : r));
+  data.characters[0].mana = 0;
+  data = ok(E.startBattle(data, 'cx', ['aranha'], ['a', 'b'], 'mar'));
+  const battle = data.codexes[0].battles[0];
+  const turn = E.currentTurn(battle);
+  const result = E.playerAction(data, 'cx', battle.id, turn, { kind: 'habilidade', abilityId: 'fb', roll: { sides: 20, value: 18 }, targetId: 'aranha' });
+  assert.ok(!('error' in result), 'sem mana, mas a mana está desligada');
+});

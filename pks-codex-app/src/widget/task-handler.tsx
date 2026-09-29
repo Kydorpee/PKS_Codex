@@ -18,8 +18,8 @@ export async function renderCharacterWidget() {
   const characters = charactersJson ? (JSON.parse(charactersJson) as Character[]).map(normalizeCharacter) : [];
   const codexes = codexesJson ? (JSON.parse(codexesJson) as Codex[]) : [];
   const character = characters.find((c) => c.id === selectedId) ?? characters[0];
-  const codexName = codexes.find((c) => c.id === character?.codexId)?.name;
-  return <CharacterWidget character={character} codexName={codexName} t={(key, params) => translate(lang, key, params)} />;
+  const codex = codexes.find((c) => c.id === character?.codexId);
+  return <CharacterWidget character={character} codexName={codex?.name} sheet={codex?.sheet} t={(key, params) => translate(lang, key, params)} />;
 }
 
 export const widgetTaskHandler: WidgetTaskHandler = async ({ widgetAction, renderWidget }) => {

@@ -12,11 +12,11 @@ import { useT } from '@/lib/i18n';
 /** Converte texto digitado em número inteiro não negativo. */
 export const toInt = (value: string) => Math.max(0, parseInt(value.replace(/\D/g, ''), 10) || 0);
 
-function Input(props: ComponentProps<typeof TextInput>) {
+export function Input(props: ComponentProps<typeof TextInput>) {
   return <TextInput placeholderTextColor={colors.textMuted} {...props} style={[styles.input, props.style]} />;
 }
 
-function RemoveButton({ onPress }: { onPress: () => void }) {
+export function RemoveButton({ onPress }: { onPress: () => void }) {
   const { t } = useT();
   return (
     <Pressable accessibilityLabel={t('Remover')} hitSlop={8} onPress={onPress} style={styles.remove}>

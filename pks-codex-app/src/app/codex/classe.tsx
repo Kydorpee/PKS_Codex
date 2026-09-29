@@ -91,6 +91,7 @@ export default function EditCodexClass() {
         <AbilityCard
           key={a.id}
           ability={a}
+          codex={codex}
           onPress={() => router.push({ pathname: '/codex/habilidade', params: { codexId: codex.id, abilityId: a.id } })}
         />
       ))}

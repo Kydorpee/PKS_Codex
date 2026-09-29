@@ -176,3 +176,6 @@ export function pixelSvg(shape: PixelShape, pct: number, palette: PixelColors, p
     .join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">${rects}</svg>`;
 }
+
+/** Forma salva como texto (ex.: ícone de barra escolhido pelo Mestre); desconhecida vira coração. */
+export const toShape = (name: string | undefined): PixelShape => (name && name in SHAPES ? (name as PixelShape) : 'heart');

@@ -8,7 +8,8 @@ import { Avatar, Button, Card, CheckRow, Field, Muted, Screen, SectionHeader, te
 import { resolveLevelUp, type LevelUpReward } from '@/lib/engine';
 import { useStore } from '@/lib/store';
 import { colors, radius, spacing } from '@/lib/theme';
-import { costLabel } from '@/lib/types';
+import { toShape } from '@/lib/pixel-shapes';
+import { RESOURCE_FIELDS, abilityCost, enabledResources } from '@/lib/rules';
 import { useT } from '@/lib/i18n';
 
 function Stepper({
@@ -123,28 +124,22 @@ export default function LevelUpEventScreen() {
 
       <SectionHeader title={t('Aumentar status')} />
       <Card>
-        <Stepper
-          label={t('Vida máxima')}
-          icon={<PixelIcon shape="heart" color={colors.hp} />}
-          value={reward.maxHp}
-          onChange={(maxHp) => set({ maxHp })}
-        />
-        <Stepper
-          label={t('Mana máxima')}
-          icon={<PixelIcon shape="drop" color={colors.mana} />}
-          value={reward.maxMana}
-          onChange={(maxMana) => set({ maxMana })}
-        />
-        <Stepper
-          label={t('Estamina máxima')}
-          icon={<PixelIcon shape="bolt" color={colors.stamina} />}
-          value={reward.maxStamina}
-          onChange={(maxStamina) => set({ maxStamina })}
-        />
+        {enabledResources(codex).map((r) => {
+          const max = RESOURCE_FIELDS[r.key].max;
+          return (
+            <Stepper
+              key={r.key}
+              label={t('{pool} máxima', { pool: r.name })}
+              icon={<PixelIcon shape={toShape(r.icon)} color={r.color} />}
+              value={reward[max]}
+              onChange={(v) => set({ [max]: v })}
+            />
+          );
+        })}
         {character.attributes.map((a) => (
           <Stepper
             key={a.id}
-            label={`${a.name} (${a.value})`}
+            label={`${codex.sheet.baseStats.find((s) => s.id === a.id)?.name ?? a.name} (${a.value})`}
             value={reward.attributes[a.id] ?? 0}
             onChange={(v) => set({ attributes: { ...reward.attributes, [a.id]: v } })}
           />
@@ -192,7 +187,7 @@ export default function LevelUpEventScreen() {
           detail={
             <View style={styles.abilityDetail}>
               <DamageStat damage={a.baseDamage} />
-              <IconStat icon={<CostIcon kind={a.kind} />}>{tx(costLabel(a))}</IconStat>
+              <IconStat icon={<CostIcon kind={a.kind} />}>{tx(abilityCost(a, codex))}</IconStat>
             </View>
           }
           checked={reward.offerAbilityIds.includes(a.id)}

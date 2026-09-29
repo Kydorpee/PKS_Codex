@@ -14,10 +14,13 @@ export function InventoryModal({
   visible,
   character,
   freeEdit,
+  currencyName = 'Ouro',
   onClose,
 }: {
   visible: boolean;
   character: Character;
+  /** Nome da moeda do Codex. */
+  currencyName?: string;
   /** Regra "Inventário livre" do Codex: permite adicionar itens sem comprar. */
   freeEdit: boolean;
   onClose: () => void;
@@ -53,7 +56,7 @@ export function InventoryModal({
             <Text style={text.title}>🎒 {t('Bolsa de itens')}</Text>
             <Button small variant="ghost" title={t('Fechar')} onPress={onClose} />
           </View>
-          <GoldAmount value={character.gold} size={20} suffix=" de ouro" />
+          <GoldAmount value={character.gold} size={20} suffix={` ${currencyName}`} />
 
           <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
             {character.inventory.length === 0 && <Muted>{t('A bolsa está vazia.')}</Muted>}

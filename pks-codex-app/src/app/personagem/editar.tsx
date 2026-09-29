@@ -1,43 +1,40 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useState, type ReactNode } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
-import { AttributeListEditor, PhotoField, toInt } from '@/components/editors';
-import { CoinIcon } from '@/components/monster-stats';
+import { useState } from 'react';
+import { Alert } from 'react-native';
+import { useStatLabel } from '@/components/character-stats';
+import { PhotoField, toInt } from '@/components/editors';
 import { PixelIcon } from '@/components/pixel-icon';
 import { Button, Field, Muted, Screen, SectionHeader } from '@/components/ui';
 import { newId } from '@/lib/ids';
-import { characterDefaults } from '@/lib/rules';
+import { toShape } from '@/lib/pixel-shapes';
+import { RESOURCE_FIELDS, baseStatValue, characterDefaults, enabledResources, withoutCodex } from '@/lib/rules';
 import { pickPhoto } from '@/lib/photos';
 import { useStore } from '@/lib/store';
-import { colors, spacing } from '@/lib/theme';
 import type { Character } from '@/lib/types';
 import { useT } from '@/lib/i18n';
 
-type Pool = { current: 'hp' | 'mana' | 'stamina'; max: 'maxHp' | 'maxMana' | 'maxStamina'; label: string; icon: ReactNode };
-
-const POOLS: Pool[] = [
-  { current: 'hp', max: 'maxHp', label: 'Vida', icon: <PixelIcon shape="heart" color={colors.danger} /> },
-  { current: 'mana', max: 'maxMana', label: 'Mana', icon: <PixelIcon shape="drop" color={colors.mana} /> },
-  { current: 'stamina', max: 'maxStamina', label: 'Estamina', icon: <PixelIcon shape="bolt" color={colors.stamina} /> },
-];
-
 export default function EditCharacter() {
   const { t, tx } = useT();
+  const label = useStatLabel();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { characters, saveCharacter } = useStore();
+  const { characters, codexes, saveCharacter } = useStore();
   const existing = characters.find((c) => c.id === id);
-
+  // Personagem novo começa fora de qualquer Codex: só aparência e história.
   const [draft, setDraft] = useState<Character>(
-    () =>
-      existing ?? {
-        id: newId(),
-        name: '',
-        age: '',
-        ...characterDefaults(),
-        createdAt: Date.now(),
-      },
+    () => existing ?? withoutCodex({ id: newId(), name: '', age: '', story: '', ...characterDefaults(), createdAt: Date.now() }),
   );
   const set = (patch: Partial<Character>) => setDraft((d) => ({ ...d, ...patch }));
+
+  const codex = codexes.find((c) => c.id === existing?.codexId);
+  // Campos que o Mestre deixou o jogador editar.
+  const editableBars = enabledResources(codex).filter((r) => r.editable);
+  const editableStats = codex?.sheet.baseStats.filter((s) => s.editable) ?? [];
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    if (!existing) return {};
+    const bars = editableBars.map((r) => [r.key, String(existing[RESOURCE_FIELDS[r.key].max])]);
+    const stats = editableStats.map((s) => [s.id, String(baseStatValue(existing, s))]);
+    return Object.fromEntries([...bars, ...stats]);
+  });
 
   const choosePhoto = async () => {
     const uri = await pickPhoto();
@@ -49,25 +46,36 @@ export default function EditCharacter() {
       Alert.alert(t('Nome obrigatório'), t('Dê um nome ao seu personagem.'));
       return;
     }
-    // Na criação o personagem começa cheio; na edição o valor atual não passa do máximo.
-    const pools = Object.fromEntries(
-      POOLS.flatMap(({ current, max }) => [
-        [max, draft[max]],
-        [current, existing ? Math.min(draft[current], draft[max]) : draft[max]],
-      ]),
-    ) as Pick<Character, Pool['current'] | Pool['max']>;
-    // Salva só os campos editáveis; habilidades/inventário podem ter mudado enquanto o formulário estava aberto.
+    // Salva só os campos editáveis; o resto pode ter mudado (batalha, Mestre) enquanto o formulário estava aberto.
     const current = characters.find((c) => c.id === draft.id);
-    const error = saveCharacter({
+    const next: Character = {
       ...(current ?? draft),
       name: draft.name.trim(),
       age: draft.age,
       race: draft.race.trim(),
+      story: draft.story?.trim(),
       photoUri: draft.photoUri,
-      gold: draft.gold,
-      attributes: draft.attributes.filter((a) => a.name.trim()).map((a) => ({ ...a, name: a.name.trim() })),
-      ...pools,
-    });
+    };
+    if (current?.codexId === codex?.id) {
+      for (const r of editableBars) {
+        const { current: now, max } = RESOURCE_FIELDS[r.key];
+        const top = toInt(values[r.key] ?? '');
+        // Cheio continua cheio; senão o valor atual não passa do novo máximo.
+        next[now] = next[now] >= next[max] ? top : Math.min(next[now], top);
+        next[max] = top;
+      }
+      if (editableStats.length > 0) {
+        const attributes = next.attributes.map((a) => ({ ...a }));
+        for (const s of editableStats) {
+          const value = toInt(values[s.id] ?? '');
+          const found = attributes.find((a) => a.id === s.id);
+          if (found) found.value = value;
+          else attributes.push({ id: s.id, name: s.name, value });
+        }
+        next.attributes = attributes;
+      }
+    }
+    const error = saveCharacter(next);
     if (error) {
       Alert.alert(t('Não foi possível salvar'), tx(error));
       return;
@@ -84,36 +92,45 @@ export default function EditCharacter() {
       <Field label={t('Raça')} placeholder={t('Ex.: Elfo')} value={draft.race} onChangeText={(race) => set({ race })} />
       <Field label={t('Idade')} placeholder="27" keyboardType="number-pad" value={draft.age} onChangeText={(age) => set({ age: age.replace(/\D/g, '') })} />
       <Field
-        label={existing ? t('Ouro') : t('Ouro inicial')}
-        icon={<CoinIcon />}
-        keyboardType="number-pad"
-        value={String(draft.gold)}
-        onChangeText={(v) => set({ gold: toInt(v) })}
+        label={t('História')}
+        placeholder={t('De onde vem, o que busca, o que teme...')}
+        multiline
+        value={draft.story ?? ''}
+        onChangeText={(story) => set({ story })}
       />
 
-      <SectionHeader title={t('Vida, mana e estamina')} />
-      {POOLS.map(({ current, max, label, icon }) =>
-        existing ? (
-          <View key={max} style={styles.poolRow}>
-            <View style={{ flex: 1 }}>
-              <Field label={t('{pool} atual', { pool: label })} icon={icon} keyboardType="number-pad" value={String(draft[current])} onChangeText={(v) => set({ [current]: toInt(v) })} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field label={t('{pool} máxima', { pool: label })} keyboardType="number-pad" value={String(draft[max])} onChangeText={(v) => set({ [max]: toInt(v) })} />
-            </View>
-          </View>
-        ) : (
-          <Field key={max} label={t(label)} icon={icon} keyboardType="number-pad" value={String(draft[max])} onChangeText={(v) => set({ [max]: toInt(v) })} />
-        ),
+      {codex && (editableBars.length > 0 || editableStats.length > 0) && (
+        <>
+          <SectionHeader title={t('Ficha do Codex')} />
+          <Muted>{t('O Mestre de "{codex}" deixou você definir estes valores.', { codex: codex.name })}</Muted>
+          {editableBars.map((r) => (
+            <Field
+              key={r.key}
+              label={t('{pool} máxima', { pool: label(r.name, r.abbr) })}
+              icon={<PixelIcon shape={toShape(r.icon)} color={r.color} />}
+              keyboardType="number-pad"
+              value={values[r.key] ?? ''}
+              onChangeText={(v) => setValues((x) => ({ ...x, [r.key]: v.replace(/\D/g, '') }))}
+            />
+          ))}
+          {editableStats.map((s) => (
+            <Field
+              key={s.id}
+              label={label(s.name, s.abbr)}
+              keyboardType="number-pad"
+              value={values[s.id] ?? ''}
+              onChangeText={(v) => setValues((x) => ({ ...x, [s.id]: v.replace(/\D/g, '') }))}
+            />
+          ))}
+        </>
       )}
 
-      <AttributeListEditor value={draft.attributes} onChange={(attributes) => set({ attributes })} />
-      <Muted>{t('Use os atributos do seu Codex. Habilidades são liberadas pelo Mestre.')}</Muted>
+      <Muted>
+        {codex
+          ? t('Itens, moedas, atributos, classe e habilidades vêm do Codex e são definidos pelo Mestre.')
+          : t('Itens, atributos, classe e habilidades aparecem quando o personagem entra num Codex. Ao sair, eles são perdidos.')}
+      </Muted>
       <Button title={t('Salvar personagem')} onPress={save} style={{ marginTop: 16 }} />
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  poolRow: { flexDirection: 'row', gap: spacing.md },
-});

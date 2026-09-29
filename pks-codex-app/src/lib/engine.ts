@@ -3,7 +3,7 @@
  * trabalham numa cópia e devolvem os dados novos ou uma mensagem de erro.
  */
 import { newId } from './ids';
-import { DICE, STATUS_INFO, addStatus, addToInventory, findAbility, gainXp, rollDie, splitXp } from './rules';
+import { DICE, RESOURCE_FIELDS, STATUS_INFO, abilityPool, addStatus, addToInventory, findAbility, gainXp, resourcesOf, rollDie, splitXp } from './rules';
 import {
   MAX_FOES,
   diceLabel,
@@ -382,15 +382,15 @@ export const playerAction = (data: Data, codexId: string, battleId: string, char
       }
       case 'habilidade': {
         const a = findAbility(c, ctx.codex, action.abilityId) ?? fail('Habilidade não encontrada.');
-        const pool = a.kind === 'magica' ? 'mana' : 'stamina';
-        if (c[pool] < a.cost) fail(`${a.kind === 'magica' ? 'Mana' : 'Estamina'} insuficiente.`);
+        // A barra que paga vem da ficha do Codex; se o Mestre a desligou, a habilidade não custa.
+        const pool = abilityPool(ctx.codex, a.kind);
+        const field = pool && RESOURCE_FIELDS[pool.key].current;
+        if (field && c[field] < a.cost) fail(`${pool.name} insuficiente.`);
         const foe = isOffensive(a) ? targetFoe(battle, action.targetId) : undefined;
-        c[pool] -= a.cost;
-        ctx.log(
-          `${a.kind === 'magica' ? '✨' : '💪'} ${c.name} usa ${a.name}${foe ? ` em ${ctx.monster(foe.monsterId).name}` : ''} (−${a.cost} ${
-            a.kind === 'magica' ? 'mana' : 'estamina'
-          }).`,
-        );
+        if (field) c[field] -= a.cost;
+        const target = foe ? ` em ${ctx.monster(foe.monsterId).name}` : '';
+        const cost = pool ? ` (−${a.cost} ${pool.name.toLowerCase()})` : '';
+        ctx.log(`${a.kind === 'magica' ? '✨' : '💪'} ${c.name} usa ${a.name}${target}${cost}.`);
         if (foe) return attack(foe, a.name, action.roll, a.id);
         battle.pending = { characterId, kind: 'habilidade', label: a.name, abilityId: a.id, dice: action.roll.value, diceSides: action.roll.sides };
         return;
@@ -747,23 +747,21 @@ export const resolveLevelUp = (data: Data, codexId: string, eventId: string, rew
     const c = draft.characters.find((x) => x.id === event.characterId) ?? fail('Personagem não encontrado.');
     const rewards: string[] = [];
 
-    const bars = [
-      ['maxHp', 'hp', 'Vida'],
-      ['maxMana', 'mana', 'Mana'],
-      ['maxStamina', 'stamina', 'Estamina'],
-    ] as const;
-    for (const [maxKey, key, label] of bars) {
+    // Só as barras ligadas no Codex, com os nomes que o Mestre deu.
+    for (const r of resourcesOf(codex).filter((x) => x.enabled)) {
+      const { current: key, max: maxKey } = RESOURCE_FIELDS[r.key];
       const delta = reward[maxKey];
       if (!delta) continue;
       c[maxKey] = Math.max(1, c[maxKey] + delta);
       c[key] = Math.min(c[maxKey], Math.max(0, c[key] + delta));
-      rewards.push(`${label} máx. ${delta > 0 ? '+' : ''}${delta}`);
+      rewards.push(`${r.name} máx. ${delta > 0 ? '+' : ''}${delta}`);
     }
     for (const attr of c.attributes) {
       const delta = reward.attributes[attr.id];
       if (!delta) continue;
       attr.value += delta;
-      rewards.push(`${attr.name} ${delta > 0 ? '+' : ''}${delta}`);
+      const name = codex.sheet?.baseStats.find((s) => s.id === attr.id)?.name ?? attr.name;
+      rewards.push(`${name} ${delta > 0 ? '+' : ''}${delta}`);
     }
     for (const a of reward.newAttributes) {
       if (!a.name.trim()) continue;

@@ -186,7 +186,7 @@ export default function CodexDashboard() {
           }
         />
         <Muted>
-          {t('Cada personagem entra no Codex com a classe inicial. Libere outras classes para quem pode trocar: o jogador escolhe se troca.')}
+          {t('Quem entra no Codex recebe a classe inicial (se houver). Libere outras classes para quem pode trocar: o jogador escolhe se troca.')}
         </Muted>
         {codex.classes.length === 0 && <Muted>{t('Nenhuma classe ainda. Crie Guerreiro, Mago, Ladino...')}</Muted>}
         {codex.classes.map((k) => {
@@ -209,7 +209,9 @@ export default function CodexDashboard() {
                   {members.length > 0 && <Muted>{members.map((m) => m.name).join(', ')}</Muted>}
                 </View>
               </View>
-              {!starting && (
+              {starting ? (
+                <Button small variant="secondary" title={t('Tirar como classe inicial')} onPress={() => setStartingClass(codex.id, undefined)} />
+              ) : (
                 <Button small variant="secondary" title={t('Usar como classe inicial')} onPress={() => setStartingClass(codex.id, k.id)} />
               )}
             </Card>
@@ -230,6 +232,7 @@ export default function CodexDashboard() {
             <AbilityCard
               key={a.id}
               ability={a}
+              codex={codex}
               onPress={() => router.push({ pathname: '/codex/habilidade', params: { codexId: codex.id, abilityId: a.id } })}
             >
               <Muted>

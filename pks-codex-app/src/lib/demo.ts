@@ -5,7 +5,7 @@
 import { setMonsterDisplay, startBattle, type Data, type Result } from './engine';
 import { newCodexCode, newId } from './ids';
 import { ABILITY_PRESETS, MONSTER_PRESETS, SHOP_PRESETS, abilityFromSeed, monsterFromPreset, shopFromPreset } from './presets';
-import { characterDefaults } from './rules';
+import { characterDefaults, defaultSheet } from './rules';
 import { MAX_CHARACTERS, type Ability, type Character, type Codex, type CodexAbility, type Item } from './types';
 
 const item = (name: string, quantity: number, description = ''): Item => ({ id: newId(), name, quantity, description });
@@ -21,14 +21,17 @@ export function loadDemo(data: Data): Result {
   const codexId = newId();
   const abilities: CodexAbility[] = ABILITY_PRESETS.map((seed) => ({ ...abilityFromSeed(seed), offeredTo: [] }));
   const byName = (name: string) => abilities.find((a) => a.name === name)!;
+  const sheet = defaultSheet();
 
-  const hero = (name: string, age: string, patch: Partial<Character>, owned: string[]): Character => ({
+  /** `stats`: valores dos status base do Codex (Força, Movimento, Inteligência). */
+  const hero = (name: string, age: string, stats: number[], patch: Partial<Character>, owned: string[]): Character => ({
     id: newId(),
     name,
     age,
     createdAt: Date.now(),
     ...characterDefaults(),
     codexId,
+    attributes: sheet.baseStats.map((s, i) => ({ id: s.id, name: s.name, value: stats[i] ?? 10 })),
     ...patch,
     abilities: owned.map((n) => strip(byName(n))),
   });
@@ -36,18 +39,21 @@ export function loadDemo(data: Data): Result {
   const aria = hero(
     'Aria (demo)',
     '24',
+    [8, 11, 16],
     { level: 2, xp: 60, hp: 18, maxHp: 25, mana: 9, maxMana: 15, gold: 140, inventory: [item('Poção de cura', 2), item('Grimório antigo', 1)] },
     ['Bola de Fogo', 'Raio Gélido', 'Mísseis Mágicos'],
   );
   const bram = hero(
     'Bram (demo)',
     '31',
+    [16, 10, 8],
     { level: 2, xp: 0, hp: 9, maxHp: 30, stamina: 14, maxStamina: 16, gold: 60, inventory: [item('Espada longa', 1), item('Escudo', 1)] },
     ['Golpe Poderoso', 'Investida'],
   );
   const lia = hero(
     'Lia (demo)',
     '19',
+    [10, 15, 12],
     { hp: 4, maxHp: 20, gold: 250, inventory: [item('Arco curto', 1), item('Flechas (20)', 3), item('Tocha', 2)] },
     ['Tiro Certeiro', 'Lâmina Envenenada'],
   );
@@ -79,6 +85,9 @@ export function loadDemo(data: Data): Result {
     // Bram acabou de subir de nível e aguarda o evento do Mestre.
     levelUps: [{ id: newId(), characterId: bram.id, level: 2, resolved: false, rewards: [], createdAt: Date.now() }],
     startingItems: [],
+    sheet,
+    currencyName: 'Ouro',
+    startingGold: 100,
     allowFreeInventory: false,
     createdAt: Date.now(),
   };

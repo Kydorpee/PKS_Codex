@@ -1,24 +1,34 @@
 import type { ReactNode } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
-import { STATUS_INFO } from '@/lib/rules';
+import { abilityCost, abilityPool, STATUS_INFO } from '@/lib/rules';
 import { colors, radius, spacing } from '@/lib/theme';
-import { costLabel, type Ability } from '@/lib/types';
+import type { Ability, Codex } from '@/lib/types';
 import { CostIcon, DamageStat } from './monster-stats';
 import { Card, Muted, text } from './ui';
 import { useT } from '@/lib/i18n';
 
-/** Exibição somente leitura de uma habilidade. */
-export function AbilityCard({ ability, children, onPress }: { ability: Ability; children?: ReactNode; onPress?: () => void }) {
+/** Exibição somente leitura de uma habilidade. `codex` dá o nome e a cor da barra que paga o custo. */
+export function AbilityCard({
+  ability,
+  codex,
+  children,
+  onPress,
+}: {
+  ability: Ability;
+  codex?: Pick<Codex, 'sheet'>;
+  children?: ReactNode;
+  onPress?: () => void;
+}) {
   const { t, tx } = useT();
-  const magic = ability.kind === 'magica';
+  const poolColor = abilityPool(codex, ability.kind)?.color ?? colors.textMuted;
   return (
     <Card onPress={onPress}>
       <View style={styles.header}>
         {ability.photoUri && <Image source={{ uri: ability.photoUri }} style={styles.photo} />}
         <Text style={[text.strong, { flex: 1 }]}>{ability.name}</Text>
-        <View style={[styles.pill, { borderColor: magic ? colors.mana : colors.stamina }]}>
+        <View style={[styles.pill, { borderColor: poolColor }]}>
           <CostIcon kind={ability.kind} />
-          <Text style={[styles.pillText, { color: magic ? colors.mana : colors.stamina }]}>{tx(costLabel(ability))}</Text>
+          <Text style={[styles.pillText, { color: poolColor }]}>{tx(abilityCost(ability, codex))}</Text>
         </View>
       </View>
       {!!ability.baseDamage && <DamageStat damage={ability.baseDamage}>{t(' de dano base')}</DamageStat>}

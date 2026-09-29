@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AbilityCard } from '@/components/ability-card';
 import { BattleView } from '@/components/battle-view';
-import { CharacterBars } from '@/components/character-stats';
+import { CharacterBars, CharacterStatBlocks } from '@/components/character-stats';
 import { InventoryModal } from '@/components/inventory-modal';
 import { CoinIcon, StarIcon } from '@/components/monster-stats';
 import { LevelUpBlock } from '@/components/level-up-block';
@@ -79,10 +79,17 @@ export default function CharacterSheet() {
   };
 
   const confirmLeave = () =>
-    Alert.alert(t('Sair do Codex?'), t('{name} vai sair de "{codex}".', { name: character.name, codex: codex?.name }), [
-      { text: t('Cancelar'), style: 'cancel' },
-      { text: t('Sair'), style: 'destructive', onPress: () => leaveCodex(character.id) },
-    ]);
+    Alert.alert(
+      t('Sair do Codex?'),
+      t('{name} vai sair de "{codex}" e perder itens, moedas, atributos, classe, habilidades e nível desta campanha.', {
+        name: character.name,
+        codex: codex?.name,
+      }),
+      [
+        { text: t('Cancelar'), style: 'cancel' },
+        { text: t('Sair'), style: 'destructive', onPress: () => leaveCodex(character.id) },
+      ],
+    );
 
   const confirmDelete = () =>
     Alert.alert(t('Apagar personagem?'), t('{name} será apagado para sempre.', { name: character.name }), [
@@ -170,7 +177,7 @@ export default function CharacterSheet() {
           <SectionHeader title={t('Habilidades oferecidas')} />
           <Muted>{t('O Mestre liberou estas habilidades para você. Aceite para registrá-las no personagem.')}</Muted>
           {offers.map((a) => (
-            <AbilityCard key={a.id} ability={a}>
+            <AbilityCard key={a.id} ability={a} codex={codex}>
               <View style={styles.offerActions}>
                 <Button small title={t('Aceitar')} style={{ flex: 1 }} onPress={() => respondAbilityOffer(character.id, codex.id, a.id, true)} />
                 <Button
@@ -190,14 +197,14 @@ export default function CharacterSheet() {
       {groups.classe.length === 0 ? (
         <Muted>{klass ? t('Esta classe ainda não tem habilidades.') : t('Sem classe, sem habilidades de classe.')}</Muted>
       ) : (
-        groups.classe.map((a) => <AbilityCard key={a.id} ability={a} />)
+        groups.classe.map((a) => <AbilityCard key={a.id} ability={a} codex={codex} />)
       )}
 
       <SectionHeader title={t('Gerais')} />
       {groups.geral.length === 0 ? (
         <Muted>{t('Nenhuma habilidade geral ainda. Elas são liberadas pelo Mestre do Codex.')}</Muted>
       ) : (
-        groups.geral.map((a) => <AbilityCard key={a.id} ability={a} />)
+        groups.geral.map((a) => <AbilityCard key={a.id} ability={a} codex={codex} />)
       )}
 
       <SectionHeader title={t('Montarias')} />
@@ -215,7 +222,7 @@ export default function CharacterSheet() {
             </View>
           </Card>
           {abilities.map((a) => (
-            <AbilityCard key={a.id} ability={a}>
+            <AbilityCard key={a.id} ability={a} codex={codex}>
               <Muted>
                 {mount.emoji} {t('Habilidade de {name}', { name: mount.name })}
               </Muted>
@@ -279,37 +286,48 @@ export default function CharacterSheet() {
           <Avatar uri={character.photoUri} name={character.name} size={96} />
           <View style={{ flex: 1, gap: spacing.xs }}>
             <Text style={text.title}>{character.name}</Text>
-            <View style={styles.level}>
-              <StarIcon />
-              <Text style={text.accent}>{t('Nível {level}', { level: character.level })}</Text>
-            </View>
+            {codex && (
+              <View style={styles.level}>
+                <StarIcon />
+                <Text style={text.accent}>{t('Nível {level}', { level: character.level })}</Text>
+              </View>
+            )}
             {(!!character.race || !!character.age) && (
               <Muted>{[character.race, character.age && t('{age} anos', { age: character.age })].filter(Boolean).join(' · ')}</Muted>
             )}
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('Abrir bolsa de itens')}
-            onPress={() => setBagOpen(true)}
-            style={({ pressed }) => [styles.bag, pressed && { opacity: 0.7 }]}
-          >
-            <Text style={styles.bagIcon}>🎒</Text>
-            {itemCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{itemCount}</Text>
-              </View>
-            )}
-          </Pressable>
+          {codex && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('Abrir bolsa de itens')}
+              onPress={() => setBagOpen(true)}
+              style={({ pressed }) => [styles.bag, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={styles.bagIcon}>🎒</Text>
+              {itemCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{itemCount}</Text>
+                </View>
+              )}
+            </Pressable>
+          )}
         </View>
-        <CharacterBars character={character} showXp />
+        {!!character.story && <Muted>{character.story}</Muted>}
+        {codex ? (
+          <CharacterBars character={character} showXp />
+        ) : (
+          <Muted>{t('Entre num Codex para receber status, itens, moedas e classe. O Mestre define tudo isso.')}</Muted>
+        )}
       </Card>
 
-      <View style={styles.stats}>
-        <Stat label={t('Ouro')} value={character.gold} icon={<CoinIcon pixel={3} />} />
-        {character.attributes.map((a) => (
-          <Stat key={a.id} label={a.name} value={a.value} />
-        ))}
-      </View>
+      {codex && (
+        <>
+          <View style={styles.stats}>
+            <Stat label={codex.currencyName} value={character.gold} icon={<CoinIcon pixel={3} />} />
+          </View>
+          <CharacterStatBlocks character={character} codex={codex} />
+        </>
+      )}
 
       {codex && (
         <LevelUpBlock
@@ -384,6 +402,7 @@ export default function CharacterSheet() {
         visible={bagOpen}
         character={character}
         freeEdit={!!codex?.allowFreeInventory}
+        currencyName={codex?.currencyName}
         onClose={() => setBagOpen(false)}
       />
     </Screen>

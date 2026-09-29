@@ -40,9 +40,9 @@ export default function Characters() {
                   {codex ? `Codex: ${codex.name}` : t('Sem Codex')}
                 </Muted>
               </View>
-              <GoldAmount value={c.gold} />
+              {codex && <GoldAmount value={c.gold} />}
             </View>
-            <CharacterBars character={c} />
+            {codex && <CharacterBars character={c} />}
           </Card>
         );
       })}

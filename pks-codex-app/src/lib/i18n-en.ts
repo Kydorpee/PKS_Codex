@@ -746,4 +746,61 @@ export const EN: Record<string, string> = {
   'Este evento já foi concluído.': 'This event was already completed.',
   'A demonstração cria 3 personagens e você só tem {n} vaga(s). Apague alguns personagens antes.':
     'The demo creates 3 characters and you only have {n} free slot(s). Delete some characters first.',
+
+  // ——— Ficha do Codex (status configurados pelo Mestre) ———
+  'Ficha incompleta': 'Incomplete sheet',
+  'Status de personagem': 'Character stats',
+  'Todo personagem que entrar no Codex recebe esta ficha. Os nomes são obrigatórios; os valores são opcionais (vazio = padrão).':
+    'Every character who joins the Codex gets this sheet. Names are required; values are optional (empty = default).',
+  'Itens iniciais': 'Starting items',
+  'Nome da moeda': 'Currency name',
+  'Moedas iniciais': 'Starting coins',
+  'Todo personagem que entrar no Codex recebe estes itens na bolsa. Pode deixar vazio.': 'Every character who joins the Codex gets these items in their bag. Can be left empty.',
+  'Classe inicial': 'Starting class',
+  'Sem classe inicial. Crie classes na aba Habilidades do Codex e escolha aqui (opcional).':
+    'No starting class. Create classes in the Codex Abilities tab and choose one here (optional).',
+  'Quem entra no Codex recebe a classe inicial (se houver). Libere outras classes para quem pode trocar: o jogador escolhe se troca.':
+    'Whoever joins the Codex gets the starting class (if any). Unlock other classes for those who may switch: the player chooses whether to switch.',
+  'Tirar como classe inicial': 'Remove as starting class',
+  'História': 'Story',
+  'De onde vem, o que busca, o que teme...': 'Where they come from, what they seek, what they fear...',
+  'Ficha do Codex': 'Codex sheet',
+  'O Mestre de "{codex}" deixou você definir estes valores.': 'The Master of "{codex}" lets you set these values.',
+  'Itens, moedas, atributos, classe e habilidades vêm do Codex e são definidos pelo Mestre.':
+    'Items, coins, attributes, class and abilities come from the Codex and are set by the Master.',
+  'Itens, atributos, classe e habilidades aparecem quando o personagem entra num Codex. Ao sair, eles são perdidos.':
+    'Items, attributes, class and abilities appear when the character joins a Codex. Leaving loses them.',
+  '{name} vai sair de "{codex}" e perder itens, moedas, atributos, classe, habilidades e nível desta campanha.':
+    '{name} will leave "{codex}" and lose the items, coins, attributes, class, abilities and level from this campaign.',
+  'Entre num Codex para receber status, itens, moedas e classe. O Mestre define tudo isso.':
+    'Join a Codex to get stats, items, coins and a class. The Master sets all of that.',
+  'Status base': 'Base stats',
+  'Status de ação': 'Action stats',
+  'Quem chega a 0 cai em batalha.': 'Whoever reaches 0 falls in battle.',
+  'Paga as habilidades mágicas.': 'Pays for magic abilities.',
+  'Paga as habilidades físicas.': 'Pays for physical abilities.',
+  'Barra obrigatória': 'Required bar',
+  'Usar esta barra': 'Use this bar',
+  'Nome (obrigatório)': 'Name (required)',
+  'Ex.: Vida': 'E.g.: Health',
+  'Sigla': 'Abbr.',
+  'Padrão': 'Default',
+  'Cor da barra': 'Bar color',
+  'Jogador define o próprio máximo': 'Player sets their own maximum',
+  'Valores guardados na ficha (ex.: Força, Movimento). Valor vazio = 10.': 'Values kept on the sheet (e.g.: Strength, Movement). Empty value = 10.',
+  'Nome (ex.: Força)': 'Name (e.g.: Strength)',
+  'Jogador pode editar': 'Player can edit',
+  'Número': 'Number',
+  'Calculados a partir dos status base, da esquerda para a direita. Ex.: Poder de ataque (PA) = FA + MV.':
+    'Calculated from the base stats, left to right. E.g.: Attack power (PA) = FA + MV.',
+  'Nome (ex.: Poder de ataque)': 'Name (e.g.: Attack power)',
+  '+ Termo': '+ Term',
+  'Movimento': 'Movement',
+  'Poder de ataque': 'Attack power',
+  'Sem custo': 'No cost',
+  'Dê um nome a cada barra ligada (a de vida é obrigatória).': 'Name every enabled bar (the health bar is required).',
+  'Dê um nome a todo status base (ou remova os vazios).': 'Name every base stat (or remove the empty ones).',
+  'Dê um nome a todo status de ação (ou remova os vazios).': 'Name every action stat (or remove the empty ones).',
+  'Todo status de ação precisa de pelo menos um termo na fórmula.': 'Every action stat needs at least one term in its formula.',
+  '{e} {name} usa {ability} em {target}.': '{e} {name} uses {ability} on {target}.',
 };
