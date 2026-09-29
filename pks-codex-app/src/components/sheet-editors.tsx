@@ -5,9 +5,9 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { newId } from '@/lib/ids';
 import { PIXEL_SHAPES, toShape } from '@/lib/pixel-shapes';
-import { formulaText } from '@/lib/rules';
+import { formulaText, resourcesOf } from '@/lib/rules';
 import { colors, radius, spacing } from '@/lib/theme';
-import type { ActionStatDef, BaseStatDef, FormulaOp, FormulaTerm, ResourceDef } from '@/lib/types';
+import type { ActionStatDef, BaseStatDef, CharacterSheet, FormulaOp, FormulaTerm, ResourceDef } from '@/lib/types';
 import { useT } from '@/lib/i18n';
 import { Input, RemoveButton, toInt } from './editors';
 import { PixelIcon } from './pixel-icon';
@@ -21,7 +21,7 @@ export const BAR_COLORS = ['#8A1519', '#C62828', '#E0701A', '#A8651A', '#B8860B'
 
 const OPS: FormulaOp[] = ['+', '-', '×', '÷'];
 
-/** Caixa de marcar com texto (ex.: "Jogador pode editar"). */
+/** Caixa de marcar com texto (ex.: "Usar esta barra"). */
 function Toggle({ label, checked, onToggle, disabled }: { label: string; checked: boolean; onToggle: () => void; disabled?: boolean }) {
   return (
     <Pressable
@@ -50,7 +50,7 @@ function Chip({ label, active, onPress, color }: { label: string; active: boolea
   );
 }
 
-/** Uma barra do personagem: ligar/desligar, nome, sigla, valor inicial, cor e ícone. */
+/** Uma barra do personagem: ligar/desligar, nome (sem sigla), valor inicial, cor e ícone. */
 export function ResourceEditor({ value, onChange }: { value: ResourceDef; onChange: (v: ResourceDef) => void }) {
   const { t } = useT();
   const set = (patch: Partial<ResourceDef>) => onChange({ ...value, ...patch });
@@ -76,10 +76,6 @@ export function ResourceEditor({ value, onChange }: { value: ResourceDef; onChan
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={styles.miniLabel}>{t('Nome (obrigatório)')}</Text>
               <Input placeholder={t('Ex.: Vida')} value={value.name} onChangeText={(name) => set({ name })} />
-            </View>
-            <View style={{ width: 80, gap: 2 }}>
-              <Text style={styles.miniLabel}>{t('Sigla')}</Text>
-              <Input placeholder="PV" autoCapitalize="characters" maxLength={4} value={value.abbr} onChangeText={(abbr) => set({ abbr })} />
             </View>
             <View style={{ width: 80, gap: 2 }}>
               <Text style={styles.miniLabel}>{t('Máximo')}</Text>
@@ -119,14 +115,13 @@ export function ResourceEditor({ value, onChange }: { value: ResourceDef; onChan
               </Pressable>
             ))}
           </View>
-          <Toggle label={t('Jogador define o próprio máximo')} checked={value.editable} onToggle={() => set({ editable: !value.editable })} />
         </>
       )}
     </View>
   );
 }
 
-/** Status base (Força, Movimento...): nome, sigla, valor inicial e se o jogador pode editar. */
+/** Status base (Força, Movimento...): nome, sigla e valor inicial. */
 export function BaseStatListEditor({ value, onChange }: { value: BaseStatDef[]; onChange: (v: BaseStatDef[]) => void }) {
   const { t } = useT();
   const update = (id: string, patch: Partial<BaseStatDef>) => onChange(value.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -143,7 +138,7 @@ export function BaseStatListEditor({ value, onChange }: { value: BaseStatDef[]; 
           />
         }
       />
-      <Muted>{t('Valores guardados na ficha (ex.: Força, Movimento). Valor vazio = 10.')}</Muted>
+      <Muted>{t('Valores guardados na ficha (ex.: Força, Movimento). Valor vazio = 10. A sigla é usada nas fórmulas; a ficha mostra o nome completo.')}</Muted>
       {value.map((s) => (
         <View key={s.id} style={styles.box}>
           <View style={styles.inline}>
@@ -165,8 +160,38 @@ export function BaseStatListEditor({ value, onChange }: { value: BaseStatDef[]; 
             />
             <RemoveButton onPress={() => onChange(value.filter((x) => x.id !== s.id))} />
           </View>
-          <Toggle label={t('Jogador pode editar')} checked={s.editable} onToggle={() => update(s.id, { editable: !s.editable })} />
         </View>
+      ))}
+    </View>
+  );
+}
+
+/** Regra "Jogador edita status": quais barras (máximo) e status base o jogador pode definir. */
+export function PlayerEditPicker({ sheet, onChange }: { sheet: CharacterSheet; onChange: (patch: Partial<CharacterSheet>) => void }) {
+  const { t } = useT();
+  const resources = resourcesOf({ sheet });
+  const label = (name: string, abbr: string) => (abbr ? `${t(name)} (${abbr})` : t(name));
+  const bars = resources.filter((r) => r.enabled);
+  const stats = sheet.baseStats.filter((s) => s.name.trim());
+  if (bars.length === 0 && stats.length === 0) return null;
+  return (
+    <View style={styles.box}>
+      <Text style={styles.miniLabel}>{t('Marque o que o jogador pode definir na ficha do personagem.')}</Text>
+      {bars.map((r) => (
+        <Toggle
+          key={r.key}
+          label={t('{pool} máxima', { pool: t(r.name) })}
+          checked={r.editable}
+          onToggle={() => onChange({ resources: resources.map((x) => (x.key === r.key ? { ...x, editable: !x.editable } : x)) })}
+        />
+      ))}
+      {stats.map((s) => (
+        <Toggle
+          key={s.id}
+          label={label(s.name, s.abbr)}
+          checked={s.editable}
+          onToggle={() => onChange({ baseStats: sheet.baseStats.map((x) => (x.id === s.id ? { ...x, editable: !x.editable } : x)) })}
+        />
       ))}
     </View>
   );
@@ -244,7 +269,7 @@ export function ActionStatListEditor({
           />
         }
       />
-      <Muted>{t('Calculados a partir dos status base, da esquerda para a direita. Ex.: Poder de ataque (PA) = FA + MV.')}</Muted>
+      <Muted>{t('Calculados a partir dos status base, da esquerda para a direita. Ex.: Poder de ataque (PA) = FA + MV. Os jogadores veem só o resultado, não a fórmula.')}</Muted>
       {value.map((a) => (
         <View key={a.id} style={styles.box}>
           <View style={styles.inline}>

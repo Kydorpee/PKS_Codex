@@ -287,19 +287,18 @@ export type LevelUpEvent = {
 /** Papel de uma barra na batalha: a vida decide quem cai; mana paga habilidades mágicas; estamina, as físicas. */
 export type ResourceKey = 'hp' | 'mana' | 'stamina';
 
-/** Barra do personagem configurada pelo Mestre (nome, sigla, cor, ícone). A de vida é obrigatória. */
+/** Barra do personagem configurada pelo Mestre (nome completo, cor, ícone). A de vida é obrigatória. */
 export type ResourceDef = {
   key: ResourceKey;
   /** Mana e estamina podem ser desligadas: somem da ficha e as habilidades deixam de custar. */
   enabled: boolean;
   name: string;
-  abbr: string;
   color: string;
   /** Forma do ícone em pixel art (heart, drop, bolt...). */
   icon: string;
   /** Máximo inicial. Vazio = padrão. */
   base?: number;
-  /** O jogador pode definir o próprio máximo. */
+  /** O jogador pode definir o próprio máximo (se a regra do Codex permitir). */
   editable: boolean;
 };
 
@@ -310,7 +309,7 @@ export type BaseStatDef = {
   abbr: string;
   /** Valor inicial. Vazio = padrão. */
   base?: number;
-  /** O jogador pode alterar o valor. */
+  /** O jogador pode alterar o valor (se a regra do Codex permitir). */
   editable: boolean;
 };
 
@@ -364,6 +363,8 @@ export type Codex = {
   startingGold?: number;
   /** Regra do Mestre: jogadores podem adicionar itens na própria bolsa, além de comprar. */
   allowFreeInventory: boolean;
+  /** Regra do Mestre: jogadores podem editar os status marcados como editáveis na ficha. */
+  allowStatEdit: boolean;
   createdAt: number;
 };
 

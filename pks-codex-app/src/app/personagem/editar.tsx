@@ -26,9 +26,10 @@ export default function EditCharacter() {
   const set = (patch: Partial<Character>) => setDraft((d) => ({ ...d, ...patch }));
 
   const codex = codexes.find((c) => c.id === existing?.codexId);
-  // Campos que o Mestre deixou o jogador editar.
-  const editableBars = enabledResources(codex).filter((r) => r.editable);
-  const editableStats = codex?.sheet.baseStats.filter((s) => s.editable) ?? [];
+  // Campos que o Mestre deixou o jogador editar (a regra do Codex liga ou desliga todos).
+  const statEdit = !!codex?.allowStatEdit;
+  const editableBars = statEdit ? enabledResources(codex).filter((r) => r.editable) : [];
+  const editableStats = statEdit ? (codex?.sheet.baseStats.filter((s) => s.editable) ?? []) : [];
   const [values, setValues] = useState<Record<string, string>>(() => {
     if (!existing) return {};
     const bars = editableBars.map((r) => [r.key, String(existing[RESOURCE_FIELDS[r.key].max])]);
@@ -106,7 +107,7 @@ export default function EditCharacter() {
           {editableBars.map((r) => (
             <Field
               key={r.key}
-              label={t('{pool} máxima', { pool: label(r.name, r.abbr) })}
+              label={t('{pool} máxima', { pool: t(r.name) })}
               icon={<PixelIcon shape={toShape(r.icon)} color={r.color} />}
               keyboardType="number-pad"
               value={values[r.key] ?? ''}
@@ -127,8 +128,8 @@ export default function EditCharacter() {
 
       <Muted>
         {codex
-          ? t('Itens, moedas, atributos, classe e habilidades vêm do Codex e são definidos pelo Mestre.')
-          : t('Itens, atributos, classe e habilidades aparecem quando o personagem entra num Codex. Ao sair, eles são perdidos.')}
+          ? t('A ficha (status, itens, moedas, classe e habilidades) vem do Codex e é definida pelo Mestre. Você só altera os status que a regra "Jogador edita status" liberar.')
+          : t('A ficha (status, itens, moedas, classe e habilidades) é gerada quando o personagem entra num Codex. Ao sair, ela é apagada e uma nova é gerada se ele entrar de novo.')}
       </Muted>
       <Button title={t('Salvar personagem')} onPress={save} style={{ marginTop: 16 }} />
     </Screen>

@@ -89,6 +89,7 @@ export function loadDemo(data: Data): Result {
     currencyName: 'Ouro',
     startingGold: 100,
     allowFreeInventory: false,
+    allowStatEdit: false,
     createdAt: Date.now(),
   };
 

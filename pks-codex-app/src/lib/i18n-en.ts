@@ -158,7 +158,8 @@ export const EN: Record<string, string> = {
   'Sair do Codex?': 'Leave Codex?',
   '{name} vai sair de "{codex}".': '{name} will leave "{codex}".',
   'Juntar-se a um Codex': 'Join a Codex',
-  'Digite o código da campanha que o Mestre compartilhou.': 'Enter the campaign code the Master shared.',
+  'Digite o código da campanha que o Mestre compartilhou. Ao entrar, o personagem recebe a ficha do Codex.':
+    'Enter the campaign code the Master shared. When joining, the character gets the Codex sheet.',
   'CÓDIGO': 'CODE',
   'Codex não encontrado': 'Codex not found',
   'Abrir bolsa de itens': 'Open item bag',
@@ -228,9 +229,13 @@ export const EN: Record<string, string> = {
   'Jogadores compram nas lojas e também podem adicionar e ajustar itens na própria bolsa.':
     'Players buy in shops and can also add and adjust items in their own bag.',
   'Jogadores só recebem itens comprando nas lojas ou pelas mãos do Mestre.': 'Players only get items by buying in shops or from the Master.',
+  'Jogador edita status': 'Player edits stats',
+  'Jogadores podem definir os status marcados abaixo na ficha do personagem.': 'Players can set the stats checked below on their character sheet.',
+  'Só o Mestre define os status. Os jogadores não podem alterá-los.': 'Only the Master sets the stats. Players cannot change them.',
+  'Marque o que o jogador pode definir na ficha do personagem.': 'Check what the player can set on the character sheet.',
   'Apagar Codex?': 'Delete Codex?',
-  '"{codex}" e todo o seu conteúdo serão apagados. Os jogadores sairão da campanha.':
-    '"{codex}" and all its content will be deleted. Players will leave the campaign.',
+  '"{codex}" e todo o seu conteúdo serão apagados. Os jogadores sairão da campanha e as fichas nela serão apagadas.':
+    '"{codex}" and all its content will be deleted. Players will leave the campaign and their sheets in it will be deleted.',
   'Código para os jogadores entrarem': 'Code for players to join',
   'Nenhuma batalha em andamento.': 'No battle in progress.',
   'Nenhuma batalha em andamento': 'No battle in progress',
@@ -248,7 +253,8 @@ export const EN: Record<string, string> = {
   'Classe: {klass}': 'Class: {klass}',
   'Remover do Codex': 'Remove from Codex',
   'Remover do Codex?': 'Remove from Codex?',
-  '{name} vai sair de "{codex}". A ficha do jogador continua existindo.': '{name} will leave "{codex}". The player’s sheet still exists.',
+  '{name} vai sair de "{codex}" e a ficha nesta campanha será apagada (itens, moedas, status, classe, habilidades e nível). Se voltar, recebe uma ficha nova.':
+    '{name} will leave "{codex}" and their sheet in this campaign will be deleted (items, coins, stats, class, abilities and level). If they come back, they get a new sheet.',
   'Não foi possível remover': 'Could not remove',
   'Bestiário IA': 'AI Bestiary',
   'Adicione monstros do bestiário ou crie os seus.': 'Add monsters from the bestiary or create your own.',
@@ -750,8 +756,8 @@ export const EN: Record<string, string> = {
   // ——— Ficha do Codex (status configurados pelo Mestre) ———
   'Ficha incompleta': 'Incomplete sheet',
   'Status de personagem': 'Character stats',
-  'Todo personagem que entrar no Codex recebe esta ficha. Os nomes são obrigatórios; os valores são opcionais (vazio = padrão).':
-    'Every character who joins the Codex gets this sheet. Names are required; values are optional (empty = default).',
+  'Todo personagem que entrar no Codex recebe esta ficha. Mudanças também valem para quem já está nele. Os nomes são obrigatórios; os valores são opcionais (vazio = padrão).':
+    'Every character who joins the Codex gets this sheet. Changes also apply to those already in it. Names are required; values are optional (empty = default).',
   'Itens iniciais': 'Starting items',
   'Nome da moeda': 'Currency name',
   'Moedas iniciais': 'Starting coins',
@@ -766,14 +772,14 @@ export const EN: Record<string, string> = {
   'De onde vem, o que busca, o que teme...': 'Where they come from, what they seek, what they fear...',
   'Ficha do Codex': 'Codex sheet',
   'O Mestre de "{codex}" deixou você definir estes valores.': 'The Master of "{codex}" lets you set these values.',
-  'Itens, moedas, atributos, classe e habilidades vêm do Codex e são definidos pelo Mestre.':
-    'Items, coins, attributes, class and abilities come from the Codex and are set by the Master.',
-  'Itens, atributos, classe e habilidades aparecem quando o personagem entra num Codex. Ao sair, eles são perdidos.':
-    'Items, attributes, class and abilities appear when the character joins a Codex. Leaving loses them.',
-  '{name} vai sair de "{codex}" e perder itens, moedas, atributos, classe, habilidades e nível desta campanha.':
-    '{name} will leave "{codex}" and lose the items, coins, attributes, class, abilities and level from this campaign.',
-  'Entre num Codex para receber status, itens, moedas e classe. O Mestre define tudo isso.':
-    'Join a Codex to get stats, items, coins and a class. The Master sets all of that.',
+  'A ficha (status, itens, moedas, classe e habilidades) vem do Codex e é definida pelo Mestre. Você só altera os status que a regra "Jogador edita status" liberar.':
+    'The sheet (stats, items, coins, class and abilities) comes from the Codex and is set by the Master. You can only change the stats the "Player edits stats" rule allows.',
+  'A ficha (status, itens, moedas, classe e habilidades) é gerada quando o personagem entra num Codex. Ao sair, ela é apagada e uma nova é gerada se ele entrar de novo.':
+    'The sheet (stats, items, coins, class and abilities) is created when the character joins a Codex. Leaving deletes it, and a new one is created if they join again.',
+  '{name} vai sair de "{codex}" e a ficha desta campanha será apagada: itens, moedas, status, classe, habilidades e nível. Para voltar, será preciso entrar de novo e receber uma ficha nova.':
+    '{name} will leave "{codex}" and this campaign’s sheet will be deleted: items, coins, stats, class, abilities and level. To come back, you will need to join again and get a new sheet.',
+  'Entre num Codex para receber a ficha: status, itens, moedas e classe. O Mestre define tudo isso.':
+    'Join a Codex to get the sheet: stats, items, coins and a class. The Master sets all of that.',
   'Status base': 'Base stats',
   'Status de ação': 'Action stats',
   'Quem chega a 0 cai em batalha.': 'Whoever reaches 0 falls in battle.',
@@ -786,13 +792,12 @@ export const EN: Record<string, string> = {
   'Sigla': 'Abbr.',
   'Padrão': 'Default',
   'Cor da barra': 'Bar color',
-  'Jogador define o próprio máximo': 'Player sets their own maximum',
-  'Valores guardados na ficha (ex.: Força, Movimento). Valor vazio = 10.': 'Values kept on the sheet (e.g.: Strength, Movement). Empty value = 10.',
+  'Valores guardados na ficha (ex.: Força, Movimento). Valor vazio = 10. A sigla é usada nas fórmulas; a ficha mostra o nome completo.':
+    'Values kept on the sheet (e.g.: Strength, Movement). Empty value = 10. The abbreviation is used in formulas; the sheet shows the full name.',
   'Nome (ex.: Força)': 'Name (e.g.: Strength)',
-  'Jogador pode editar': 'Player can edit',
   'Número': 'Number',
-  'Calculados a partir dos status base, da esquerda para a direita. Ex.: Poder de ataque (PA) = FA + MV.':
-    'Calculated from the base stats, left to right. E.g.: Attack power (PA) = FA + MV.',
+  'Calculados a partir dos status base, da esquerda para a direita. Ex.: Poder de ataque (PA) = FA + MV. Os jogadores veem só o resultado, não a fórmula.':
+    'Calculated from the base stats, left to right. E.g.: Attack power (PA) = FA + MV. Players only see the result, not the formula.',
   'Nome (ex.: Poder de ataque)': 'Name (e.g.: Attack power)',
   '+ Termo': '+ Term',
   'Movimento': 'Movement',

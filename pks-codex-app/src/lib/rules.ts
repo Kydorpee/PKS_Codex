@@ -90,9 +90,9 @@ export const RESOURCE_FIELDS: Record<ResourceKey, { current: 'hp' | 'mana' | 'st
 export const RESOURCE_KEYS = Object.keys(RESOURCE_FIELDS) as ResourceKey[];
 
 export const DEFAULT_RESOURCES: ResourceDef[] = [
-  { key: 'hp', enabled: true, name: 'Vida', abbr: 'PV', color: '#8A1519', icon: 'heart', editable: false },
-  { key: 'mana', enabled: true, name: 'Mana', abbr: 'PM', color: '#2D5C9A', icon: 'drop', editable: false },
-  { key: 'stamina', enabled: true, name: 'Estamina', abbr: 'PE', color: '#A8651A', icon: 'bolt', editable: false },
+  { key: 'hp', enabled: true, name: 'Vida', color: '#8A1519', icon: 'heart', editable: false },
+  { key: 'mana', enabled: true, name: 'Mana', color: '#2D5C9A', icon: 'drop', editable: false },
+  { key: 'stamina', enabled: true, name: 'Estamina', color: '#A8651A', icon: 'bolt', editable: false },
 ];
 
 /** Ficha sugerida para um Codex novo; o Mestre edita tudo. */
@@ -332,6 +332,8 @@ export const normalizeCodex = (c: Codex): Codex => ({
   levelUps: c.levelUps ?? [],
   startingItems: c.startingItems ?? [],
   allowFreeInventory: c.allowFreeInventory ?? false,
+  // Codex antigos já liberavam a edição pelos status marcados.
+  allowStatEdit: c.allowStatEdit ?? true,
   // Codex antigos: as três barras de sempre; os atributos que cada personagem já tinha aparecem como extras.
   sheet: {
     resources: resourcesOf(c),

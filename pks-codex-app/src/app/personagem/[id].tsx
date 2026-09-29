@@ -81,7 +81,7 @@ export default function CharacterSheet() {
   const confirmLeave = () =>
     Alert.alert(
       t('Sair do Codex?'),
-      t('{name} vai sair de "{codex}" e perder itens, moedas, atributos, classe, habilidades e nível desta campanha.', {
+      t('{name} vai sair de "{codex}" e a ficha desta campanha será apagada: itens, moedas, status, classe, habilidades e nível. Para voltar, será preciso entrar de novo e receber uma ficha nova.', {
         name: character.name,
         codex: codex?.name,
       }),
@@ -262,7 +262,7 @@ export default function CharacterSheet() {
         ) : (
           <>
             <Text style={text.strong}>{t('Juntar-se a um Codex')}</Text>
-            <Muted>{t('Digite o código da campanha que o Mestre compartilhou.')}</Muted>
+            <Muted>{t('Digite o código da campanha que o Mestre compartilhou. Ao entrar, o personagem recebe a ficha do Codex.')}</Muted>
             <View style={styles.joinRow}>
               <TextInput
                 style={styles.codeInput}
@@ -316,7 +316,7 @@ export default function CharacterSheet() {
         {codex ? (
           <CharacterBars character={character} showXp />
         ) : (
-          <Muted>{t('Entre num Codex para receber status, itens, moedas e classe. O Mestre define tudo isso.')}</Muted>
+          <Muted>{t('Entre num Codex para receber a ficha: status, itens, moedas e classe. O Mestre define tudo isso.')}</Muted>
         )}
       </Card>
 

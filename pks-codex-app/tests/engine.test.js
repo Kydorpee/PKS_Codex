@@ -550,9 +550,9 @@ test('personagem caído: a cura escolhida pelo Mestre levanta, e o Mestre pode l
 test('entrar no Codex dá a ficha do Mestre; sair apaga tudo menos aparência e história', () => {
   const sheet = {
     resources: [
-      { key: 'hp', enabled: true, name: 'Vida', abbr: 'PV', color: '#000', icon: 'heart', base: 30, editable: false },
-      { key: 'mana', enabled: false, name: 'Mana', abbr: 'PM', color: '#000', icon: 'drop', editable: false },
-      { key: 'stamina', enabled: true, name: 'Fôlego', abbr: 'FO', color: '#000', icon: 'bolt', editable: true },
+      { key: 'hp', enabled: true, name: 'Vida', color: '#000', icon: 'heart', base: 30, editable: false },
+      { key: 'mana', enabled: false, name: 'Mana', color: '#000', icon: 'drop', editable: false },
+      { key: 'stamina', enabled: true, name: 'Fôlego', color: '#000', icon: 'bolt', editable: true },
     ],
     baseStats: [
       { id: 'fa', name: 'Força', abbr: 'FA', base: 4, editable: false },

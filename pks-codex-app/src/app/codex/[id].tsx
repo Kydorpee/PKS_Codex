@@ -78,7 +78,7 @@ export default function CodexDashboard() {
     }));
 
   const confirmRemove = (characterId: string, name: string) =>
-    Alert.alert(t('Remover do Codex?'), t('{name} vai sair de "{codex}". A ficha do jogador continua existindo.', { name, codex: codex.name }), [
+    Alert.alert(t('Remover do Codex?'), t('{name} vai sair de "{codex}" e a ficha nesta campanha será apagada (itens, moedas, status, classe, habilidades e nível). Se voltar, recebe uma ficha nova.', { name, codex: codex.name }), [
       { text: t('Cancelar'), style: 'cancel' },
       {
         text: t('Remover'),
@@ -109,7 +109,7 @@ export default function CodexDashboard() {
   const addShopPreset = (key: string) => router.push({ pathname: '/codex/loja', params: { codexId: codex.id, preset: key } });
 
   const confirmDelete = () =>
-    Alert.alert(t('Apagar Codex?'), t('"{codex}" e todo o seu conteúdo serão apagados. Os jogadores sairão da campanha.', { codex: codex.name }), [
+    Alert.alert(t('Apagar Codex?'), t('"{codex}" e todo o seu conteúdo serão apagados. Os jogadores sairão da campanha e as fichas nela serão apagadas.', { codex: codex.name }), [
       { text: t('Cancelar'), style: 'cancel' },
       {
         text: t('Apagar'),

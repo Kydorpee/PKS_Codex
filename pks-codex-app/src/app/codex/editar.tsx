@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ItemListEditor, toInt } from '@/components/editors';
 import { CoinIcon } from '@/components/monster-stats';
-import { ActionStatListEditor, BaseStatListEditor, ResourceEditor } from '@/components/sheet-editors';
+import { ActionStatListEditor, BaseStatListEditor, PlayerEditPicker, ResourceEditor } from '@/components/sheet-editors';
 import { Button, CheckRow, Field, Muted, Screen, SectionHeader } from '@/components/ui';
 import { newCodexCode, newId } from '@/lib/ids';
 import { itemSuggestions } from '@/lib/presets';
@@ -13,7 +13,7 @@ import { colors, radius, spacing } from '@/lib/theme';
 import type { CharacterSheet, Codex, Item } from '@/lib/types';
 import { useT } from '@/lib/i18n';
 
-type CodexFields = Pick<Codex, 'name' | 'description' | 'startingItems' | 'allowFreeInventory' | 'sheet' | 'currencyName' | 'startingGold' | 'startingClassId'>;
+type CodexFields = Pick<Codex, 'name' | 'description' | 'startingItems' | 'allowFreeInventory' | 'allowStatEdit' | 'sheet' | 'currencyName' | 'startingGold' | 'startingClassId'>;
 
 const newCodex = (usedCodes: string[], fields: CodexFields): Codex => ({
   id: newId(),
@@ -32,7 +32,7 @@ const newCodex = (usedCodes: string[], fields: CodexFields): Codex => ({
 
 /** Ficha pronta para salvar: nomes aparados e fórmulas sem status base apagados. Retorna o erro, se houver. */
 function cleanSheet(sheet: CharacterSheet): { sheet: CharacterSheet } | { error: string } {
-  const resources = resourcesOf({ sheet }).map((r) => ({ ...r, name: r.name.trim(), abbr: r.abbr.trim() }));
+  const resources = resourcesOf({ sheet }).map((r) => ({ ...r, name: r.name.trim() }));
   if (resources.some((r) => r.enabled && !r.name)) return { error: 'Dê um nome a cada barra ligada (a de vida é obrigatória).' };
   const baseStats = sheet.baseStats.map((s) => ({ ...s, name: s.name.trim(), abbr: s.abbr.trim() }));
   if (baseStats.some((s) => !s.name)) return { error: 'Dê um nome a todo status base (ou remova os vazios).' };
@@ -62,6 +62,7 @@ export default function EditCodex() {
   const [startingItems, setStartingItems] = useState<Item[]>(existing?.startingItems ?? []);
   const [startingClassId, setStartingClassId] = useState(existing?.startingClassId);
   const [allowFreeInventory, setAllowFreeInventory] = useState(existing?.allowFreeInventory ?? false);
+  const [allowStatEdit, setAllowStatEdit] = useState(existing?.allowStatEdit ?? false);
   const setSheetPart = (patch: Partial<CharacterSheet>) => setSheet((s) => ({ ...s, ...patch }));
 
   const save = () => {
@@ -86,6 +87,7 @@ export default function EditCodex() {
       startingItems: items,
       startingClassId: existing?.classes.some((k) => k.id === startingClassId) ? startingClassId : undefined,
       allowFreeInventory,
+      allowStatEdit,
     };
     if (existing) {
       saveCodexSettings(existing.id, fields);
@@ -111,7 +113,7 @@ export default function EditCodex() {
 
       <SectionHeader title={t('Status de personagem')} />
       <Muted>
-        {t('Todo personagem que entrar no Codex recebe esta ficha. Os nomes são obrigatórios; os valores são opcionais (vazio = padrão).')}
+        {t('Todo personagem que entrar no Codex recebe esta ficha. Mudanças também valem para quem já está nele. Os nomes são obrigatórios; os valores são opcionais (vazio = padrão).')}
       </Muted>
       {resourcesOf({ sheet }).map((r) => (
         <ResourceEditor
@@ -184,6 +186,18 @@ export default function EditCodex() {
         checked={allowFreeInventory}
         onToggle={() => setAllowFreeInventory((v) => !v)}
       />
+      <CheckRow
+        label={t('Jogador edita status')}
+        icon={<Text style={{ fontSize: 28 }}>✏️</Text>}
+        detail={
+          allowStatEdit
+            ? t('Jogadores podem definir os status marcados abaixo na ficha do personagem.')
+            : t('Só o Mestre define os status. Os jogadores não podem alterá-los.')
+        }
+        checked={allowStatEdit}
+        onToggle={() => setAllowStatEdit((v) => !v)}
+      />
+      {allowStatEdit && <PlayerEditPicker sheet={sheet} onChange={setSheetPart} />}
       <Button title={existing ? t('Salvar') : t('Criar Codex')} onPress={save} style={{ marginTop: 16 }} />
     </Screen>
   );
